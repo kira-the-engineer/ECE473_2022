@@ -1,6 +1,7 @@
-// lab2_skel.c 
-// R. Traylor
-// 9.12.08
+// lab2.c 
+// Modified version of Roger's skeleton code
+// K. Kopcho
+// 10.12.22
 
 //  HARDWARE SETUP:
 //  PORTA is connected to the segments of the LED display. and to the pushbuttons.
@@ -31,7 +32,11 @@ uint8_t dec_to_7seg[12]
 //
 uint8_t chk_buttons(uint8_t button) {
 //******************************************************************************
-
+  static uint16_t pbstate[8] = {0};  // create initialize button state storage array with zeros
+  pbstate[button] = (pbstate[button] << 1) | (! bit_is_clear(PINA, button)) | 0xE000;
+  if(pbstate[button] == 0xF000) return 1;
+  return 0;
+}
 //***********************************************************************************
 //                                   segment_sum                                    
 //takes a 16-bit binary input value and places the appropriate equivalent 4 digit 
@@ -49,12 +54,17 @@ void segsum(uint16_t sum) {
 //***********************************************************************************
 uint8_t main()
 {
-//set port bits 4-7 B as outputs
+DDRB = 0xF0; //set port bits 4-7 B as outputs [0b11110000]
 while(1){
-  //insert loop delay for debounce
-  //make PORTA an input port with pullups 
+  _delay_ms(2); // keep in loop for 24ms (12 shifts * 2)
+  DDRA = 0x00;  // set PORTA to all inputs
+  PORTA = 0xFF; // enable all pullup resistors on PORTA
   //enable tristate buffer for pushbutton switches
-  //now check each button and increment the count as needed
+  for(int i = 0; i < 8; i++){ // iterate over buttons on PORTA 
+	if(chk_buttons(i)) {
+		//increment count
+	}
+  }
   //disable tristate buffer for pushbutton switches
   //bound the count to 0 - 1023
   //break up the disp_value to 4, BCD digits in the array: call (segsum)
