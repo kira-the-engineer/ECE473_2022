@@ -54,19 +54,29 @@ void segsum(uint16_t sum) {
 //***********************************************************************************
 uint8_t main()
 {
-DDRB = 0xF0; //set port bits 4-7 B as outputs [0b11110000]
+uint16_t seg_sum; // create variable to count from pushbuttons
+DDRB |= (1<<PB4) | (1<<PB5) | (1<<PB6); //set port bits 4-7 B as outputs [0b11110000]
 while(1){
   _delay_ms(2); // keep in loop for 24ms (12 shifts * 2)
   DDRA = 0x00;  // set PORTA to all inputs
   PORTA = 0xFF; // enable all pullup resistors on PORTA
-  //enable tristate buffer for pushbutton switches
+  // enable tristate buffer for pushbutton switches by setting seg0, seg1, seg2 high.
+  // this puts all outputs of the 8 bit decoder to high except for bit 8. Since the
+  // seven segment display is active low, this ensures the pushbuttons on port A
+  // won't blank out the segments. Bit 8 is tied to the enable pin of the tristate
+  // buffer on the pushbutton board, and drives the enable pin
   for(int i = 0; i < 8; i++){ // iterate over buttons on PORTA 
 	if(chk_buttons(i)) {
-		//increment count
+		seg_sum += (1 << i) // Use binary shifting of 0b00000000 to make 
+				    // each switch increment the value of sum by a power of 2
 	}
   }
-  //disable tristate buffer for pushbutton switches
+  //disable tristate buffer for pushbutton switches by clearing bit 6, sending bit 8 low
+  PORTB &= ~(1<<PB6);
   //bound the count to 0 - 1023
+  if(seg_sum > 1023) {
+	seg_sum = 0;
+  }
   //break up the disp_value to 4, BCD digits in the array: call (segsum)
   //bound a counter (0-4) to keep track of digit to display 
   //make PORTA an output
