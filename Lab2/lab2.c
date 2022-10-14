@@ -125,8 +125,15 @@ while(1){
   segsum(seg_sum); 
   //make PORTA an output
   DDRA = 0xFF;
-  //send 7 segment code to LED segments
-  //send PORTB the digit to display
-  //update digit to display
+  for(int i = 0; i < 5; i++) { // loop through array of segments
+	PORTA = segment_data[i]; // display value a segment per loop
+        // Need to shift which segmment select pins are driven each loop
+        // because we don't want to overwrite every digit each time
+        // Digit 4 [ones] (Y0) needs to be on first- which means Seg0, Seg1, Seg2 need to be low
+	// Digit 3 [tens] (Y1) needs to be on next - Seg0 = H, Seg1 = H, Seg2 = L
+	// Digit 2 [colon] (Y2) needs to be on next - Seg0 = L, Seg1 = H, Seg2 = L
+	// Digit 1 [hunds] (Y3) needs to be on next - Seg0 = L, Seg1 = H, Seg2 = H
+	// Digit 0 [thou] (Y4) needs to be on next - Seg0 = H, Seg1 = L, Seg2 = L
+   } // For
   }//while
 }//main
