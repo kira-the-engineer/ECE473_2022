@@ -86,7 +86,7 @@ void segsum(uint16_t sum) {
   switch(dig_cnt){
 	case 4: break; // if there's 4 digits, don't blank anything and break
 	case 3: segment_data[4] = 0xFF; break; // if there's 3 digits, blank the thou place
-	case 2: segment_data[4] = 0xFF; segment_data[3] = 0xFF; break; // if there's 2 digits, blank thou, hund place 
+  	case 2: segment_data[4] = 0xFF; segment_data[3] = 0xFF; break; // if there's 2 digits, blank thou, hund place 
 	case 1: segment_data[4] = 0xFF; segment_data[3] = 0xFF; segment_data[1] = 0xFF; break; // if there's 1 digit blank thou, hund, tens place
 	//just display a single zero if 0 or over 1023
 	default: segment_data[4] = 0xFF; segment_data[3] = 0xFF; segment_data[1] = 0xFF; segment_data[0] = 0x00; break; 
@@ -98,7 +98,7 @@ void segsum(uint16_t sum) {
 //***********************************************************************************
 uint8_t main()
 {
-uint16_t seg_sum; // create variable to count from pushbuttons
+uint16_t seg_sum = 0; // create variable to count from pushbuttons
 DDRB |= (1<<PB4) | (1<<PB5) | (1<<PB6); //set port bits 4-7 B as outputs [0b11110000]
 while(1){
   _delay_ms(2); // keep in loop for 24ms (12 shifts * 2)
@@ -115,8 +115,8 @@ while(1){
 				     // each switch increment the value of sum by a power of 2
 	}
   }
-  //disable tristate buffer for pushbutton switches by clearing bit 6, sending bit 8 of the decoder low
-  PORTB &= ~(1<<PB6);
+  //disable tristate buffer for pushbutton switches by clearing bit 4 (Seg 2), sending bit 8 of the decoder low
+  DDRB &= ~(1<<PB4);
   //bound the count to 0 - 1023
   if(seg_sum > 1023) {
 	seg_sum = 0;
@@ -125,15 +125,20 @@ while(1){
   segsum(seg_sum); 
   //make PORTA an output
   DDRA = 0xFF;
-  for(int i = 0; i < 5; i++) { // loop through array of segments
-	PORTA = segment_data[i]; // display value a segment per loop
-        // Need to shift which segmment select pins are driven each loop
+  for(int i = 0; i < 5; i++) {
+	PORTB = (i << 4);
+	PORTA = segment_data[i];
+	_delay_ms(2);
+  }
+	// Pseudocode below here:
+        // Need to shift which segmment select pins are driven
         // because we don't want to overwrite every digit each time
-        // Digit 4 [ones] (Y0) needs to be on first- which means Seg0, Seg1, Seg2 need to be low
-	// Digit 3 [tens] (Y1) needs to be on next - Seg0 = H, Seg1 = H, Seg2 = L
-	// Digit 2 [colon] (Y2) needs to be on next - Seg0 = L, Seg1 = H, Seg2 = L
-	// Digit 1 [hunds] (Y3) needs to be on next - Seg0 = L, Seg1 = H, Seg2 = H
-	// Digit 0 [thou] (Y4) needs to be on next - Seg0 = H, Seg1 = L, Seg2 = L
-   } // For
+	// Seg2 = PB4, Seg1 = PB5, Seg0 = PB6
+        // Digit 4 [ones] (Y0) needs to be on first- which means Seg0, Seg1, Seg2 need to be low [0x00]
+	// Digit 3 [tens] (Y1) needs to be on next - Seg0 = H, Seg1 = H, Seg2 = L [0x10]
+	// Digit 2 [colon] (Y2) needs to be on next - Seg0 = L, Seg1 = H, Seg2 = L [0x20]
+	// Digit 1 [hunds] (Y3) needs to be on next - Seg0 = L, Seg1 = H, Seg2 = H [0x30]
+	// Digit 0 [thou] (Y4) needs to be on next - Seg0 = H, Seg1 = L, Seg2 = L [0x40]
+	// To do this in a loop, we can binary shift left by 4: (0 = 0, 1 = 0x10, 2 = 0x20, 3 = 0x30, 4 = 0x40)
   }//while
 }//main
