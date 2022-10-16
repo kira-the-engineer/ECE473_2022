@@ -58,11 +58,11 @@ uint8_t chk_buttons(uint8_t button) {
 //array is loaded at exit as:  |digit3|digit2|colon|digit1|digit0|
 void segsum(uint16_t sum) {
   //determine how many digits there are 
-  uint8_t dig_cnt = 0; 
+  uint8_t dig_cnt; 
   if(sum < 10) dig_cnt = 1; // checks if sum is 0 through 9
   else if(sum < 100 && sum >= 10) dig_cnt = 2; // checks if sum is 10 through 99
   else if(sum < 1000 && sum >= 100) dig_cnt = 3; // checks if sum is 1000 through 999
-  else if(sum <= 1023) dig_cnt = 4; // checks if sum is 1000 through 1023
+  else if(sum > 99 && sum <= 1023) dig_cnt = 4; // checks if sum is 1000 through 1023
   else {
        dig_cnt = 0; // if sum is greater than 1023 or error
   }
@@ -74,17 +74,17 @@ void segsum(uint16_t sum) {
   uint8_t hundreds = ((sum / 100) % 10);
   uint8_t thousands = ((sum / 1000) % 10);
 
-  //load encoded values into segment data array
-  segment_data[0] = dec_to_7seg[ones]; // encode digit for ones place
-  segment_data[1] = dec_to_7seg[tens]; // encode digit for tens place
+  //load values into segment data array
+  segment_data[0] = dec_to_7seg[ones]; // get digit for ones place
+  segment_data[1] = dec_to_7seg[tens]; // get digit for tens place
   segment_data[2] = 0xFF; // Keep colon off
-  segment_data[3] = dec_to_7seg[hundreds]; // encode digit for hundreds place
-  segment_data[4] = dec_to_7seg[thousands]; // encode digit for thousands place
+  segment_data[3] = dec_to_7seg[hundreds]; // get digit for hundreds place
+  segment_data[4] = dec_to_7seg[thousands]; // get digit for thousands place
 
 
   //blank out leading zero digits
   switch(dig_cnt){
-	case 4: break; // if there's 4 digits, don't blank anything and break
+	case 4: segment_data[4] = dec_to_7seg[1]; break; // if there's 4 digits, don't blank anything and break
 	case 3: segment_data[4] = 0xFF; break; // if there's 3 digits, blank the thou place
   	case 2: segment_data[4] = 0xFF; segment_data[3] = 0xFF; break; // if there's 2 digits, blank thou, hund place 
 	case 1: segment_data[4] = 0xFF; segment_data[3] = 0xFF; segment_data[1] = 0xFF; break; // if there's 1 digit blank thou, hund, tens place
@@ -99,7 +99,7 @@ void segsum(uint16_t sum) {
 uint8_t main()
 {
 uint16_t seg_sum = 0; // create variable to count from pushbuttons
-DDRB |= (1<<PB4) | (1<<PB5) | (1<<PB6); //set port bits 4-7 B as outputs [0b11110000]
+DDRB |= (1<<PB4) | (1<<PB5) | (1<<PB6) | (1<<PB7); //set port bits 4-7 B as outputs [0b11110000]
 while(1){
   _delay_ms(2); // keep in loop for 24ms (12 shifts * 2)
   DDRA = 0x00;  // set PORTA to all inputs
@@ -109,6 +109,7 @@ while(1){
   // seven segment display is active low, this ensures the pushbuttons on port A
   // won't blank out the segments. Bit 8 is tied to the enable pin of the tristate
   // buffer on the pushbutton board, and drives the enable pin
+  PORTB |= (1<<PB4) | (1<<PB5) | (1<<PB6);
   for(int i = 0; i < 8; i++){ // iterate over buttons on PORTA 
 	if(chk_buttons(i)) {
 		seg_sum += (1 << i); // Use binary shifting of 0b00000000 to make 
@@ -116,7 +117,7 @@ while(1){
 	}
   }
   //disable tristate buffer for pushbutton switches by clearing bit 4 (Seg 2), sending bit 8 of the decoder low
-  DDRB &= ~(1<<PB4);
+  PORTB &= ~(1<<PB6);
   //bound the count to 0 - 1023
   if(seg_sum > 1023) {
 	seg_sum = 0;
@@ -126,8 +127,8 @@ while(1){
   //make PORTA an output
   DDRA = 0xFF;
   for(int i = 0; i < 5; i++) {
-	PORTB = (i << 4);
-	PORTA = segment_data[i];
+        PORTB = (i << 4);
+        PORTA = segment_data[i];
 	_delay_ms(2);
   }
 	// Pseudocode below here:

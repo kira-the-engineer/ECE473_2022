@@ -34,6 +34,7 @@ int main()
 DDRB = 0xFF;  //set port B to all outputs
 DDRA = 0x00;  //set port A to all inputs
 PORTA = 0xFF; //set port A to all pullups
+
 while(1){     //do forever
  for(int i = 0; i < 8; i++){
      if(debounce(i)) { //if switch true for 12 passes, increment port B
