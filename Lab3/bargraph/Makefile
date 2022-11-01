@@ -1,4 +1,4 @@
-PRG            =testled1
+PRG            =bar_graph_noints_skel
 OBJ            = $(PRG).o
 
 MCU_TARGET     = atmega128
