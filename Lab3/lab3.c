@@ -5,6 +5,10 @@
 #include <util/delay.h>
 #include <avr/interrupt.h>
 
+uint16_t seg_sum = 0; //create variable to count from the encoder to send to the display
+uint8_t bar_cnt = 0; //create variable to store count to send to bargraph
+uint8_t cntup = 0, cntdn = 0; //boolean ints that read 0 if off, 1 if on
+uint8_t cnt2x, cnt4x; //boolean ints that store 1 or 0 depending on if they're enabled
 
 //Bring over segment array defs from Lab2
 //holds data to be sent to the segments. logic zero turns segment on
@@ -51,7 +55,7 @@ void timer_init(void) {
      TCCR0 |= (1<<CS02) | (1<<CS00);  //normal mode, prescale by 128
 }
 
-//******************************************************************************
+/******************************************************************************
 //                            chk_buttons                                      
 //Checks the state of the button number passed to it. It shifts in ones till   
 //the button is pushed. Function returns a 1 only once per debounced button    
@@ -60,19 +64,21 @@ void timer_init(void) {
 //Expects active low pushbuttons on PINA port.  Debounce time is determined by 
 //external loop delay times 12. 
 //
+*******************************************************************************/
 uint8_t chk_buttons(uint8_t button) {
-//******************************************************************************
   static uint16_t pbstate[8] = {0};  // create initialize button state storage array with zeros
   pbstate[button] = (pbstate[button] << 1) | (! bit_is_clear(PINA, button)) | 0xE000;
   if(pbstate[button] == 0xF000) return 1;
   return 0;
 }
 
-//***********************************************************************************
+/************************************************************************************
 //                                   segment_sum                                    
 //takes a 16-bit binary input value and places the appropriate equivalent 4 digit 
 //BCD segment code in the array segment_data for display.                       
 //array is loaded at exit as:  |digit3|digit2|colon|digit1|digit0|
+//
+*************************************************************************************/
 void segsum(uint16_t sum) {
   //determine how many digits there are 
   uint8_t dig_cnt; 
@@ -109,7 +115,49 @@ void segsum(uint16_t sum) {
 	default: segment_data[4] = 0xFF; segment_data[3] = 0xFF; segment_data[1] = 0xFF; segment_data[0] = 0x00; break; 
   }
 }//segment_sum
-//***********************************************************************************
+
+/***********************************************************************************
+//					TCNT0 ISR
+//Interrupt service handler for the Timer/CNT 0. This service routine checks the 
+//pushbuttons to figure out what count the encoder should increment by. It also
+//checks the value of the encoder rotation sent to the MISO pin with a state
+//machine, and updates the bargraph as well as sets a global counter variable
+//for the count to send to the segments
+//
+*************************************************************************************/
+ISR(TIMER_0VF_vect){
+  DDRA = 0x00;  // set PORTA to all inputs
+  PORTA = 0xFF; // enable all pullup resistors on PORTA
+  //First we want to update the buttons to see what state they're in
+  //This time we're only using two buttons, to make it easy I'm just going with 0 and 1
+  PORTB |= (1<<PB4) | (1<<PB5) | (1<<PB6); //enable tristate buffer to get button states
+  for(int i=0; i < 2; i++){
+	if(i == 0){ //if we're on button 1
+		if(chkbuttons(i)){ //if button 1 is pressed
+			//set flag to inc count by 2
+		}
+	}
+	else if(i == 1){
+		if(chkbuttons(i)){ //if button 2 is pressed
+			//set flag to inc count by 4
+		}
+	}
+  }
+
+  PORTB &= ~(1<<PB6); //disable tristates once buttons are checked
+	//check if both flags are enabled
+	//if yes set count to previous count??/don't update/rei
+
+	//check encoders 1st to update count, then do logic for checking what to scale count by?
+	//when count is upped in state machine, set flag for l3 up
+	//when count is decreased in state machine, set flag for l3 down
+
+	//scale count based on flag set 
+	//once count is scaled
+	//check if increased by 32 steps(diff between last encoder count and this enc count = 32);
+	//if it is, increment bargraph- if not, just show LED for up mode
+
+}
 
 uint8_t main() {
   // Begin port initialization
@@ -131,7 +179,18 @@ uint8_t main() {
   while(1){
 
 
+    //bound the count to 0 - 1023
+    if(seg_sum > 1023) {
+	seg_sum = 0;
+    }
 
+    //make PORTA an output, send bits to display
+    DDRA = 0xFF;
+    for(int i = 0; i < 5; i++) {
+        PORTB = (i << 4);
+        PORTA = segment_data[i];
+	_delay_ms(2);
+    }
 
   }
 
