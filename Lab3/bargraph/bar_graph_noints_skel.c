@@ -23,9 +23,9 @@
 //**********************************************************************
 void spi_init(void){
 
-  DDRB |= ((1<<PB0) | (1<<PB1) | (1<<PB2)); //output mode for SS, MOSI, SCLK
+  DDRB |= 0x07; //output mode for SS, MOSI, SCLK
 
-  SPCR = (1<<SPE) | (1<<MSTR); //master mode, clk low on idle (CPOL = 0), leading edge sample (CPHA = 0) 
+  SPCR = (1<<SPE) | (1<<MSTR) | (0<<CPHA) | (0<<CPOL); //master mode, clk low on idle (CPOL = 0), leading edge sample (CPHA = 0) 
 
   SPSR = (1<<SPI2X); //choose double speed operation
  }//spi_init
@@ -45,14 +45,15 @@ while(1){                             //main while loop
 
     while (bit_is_clear(SPSR, SPIF)){} //spin till SPI data has been sent 
 
-    PORTB |= 0x01;                     //send rising edge to regclk on HC595 
+    PORTB |= (1 << PB0);                 //send rising edge to regclk on HC595 
 
-    PORTB &= 0x07;                     //send falling edge to regclk on HC595
+    PORTB &= ~(1 << PB0);                 //send falling edge to regclk on HC595
 
     display_count = (display_count << 1); //shift display_count for next time 
 
-    if(display_count == 0b1000000) {display_count = 0;}; //put indicator back to 1st positon
+    if(display_count == 0x80) {display_count = 1;}; //put indicator back to 1st positon
 
     for(i=0; i<=4; i++){_delay_ms(100);}         //0.5 sec delay
   } //while(1)
 } //main
+

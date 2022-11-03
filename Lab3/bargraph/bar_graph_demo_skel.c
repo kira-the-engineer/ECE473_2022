@@ -60,17 +60,17 @@ void tcnt0_init(void){
 /*************************************************************************/
 ISR(TIMER0_OVF_vect){
   static uint8_t count_7ms = 0;        //holds 7ms tick count in binary
-  static uint8_t display_count = 0x01; //holds count for display 
+  static uint8_t display_count = 1; //holds count for display 
 
   count_7ms++;                         //increment count every 7.8125 ms 
   if ((count_7ms % 64)==0){        //?? interrupts equals one half second 
     SPDR = display_count;               //send to display 
     while(bit_is_clear(SPSR,SPIF)){}    //wait till data sent out (while loop)
-    PORTB |= 0x01;                      //HC595 output reg - rising edge...
-    PORTB &= 0x07;                      //and falling edge
+    PORTB |= (1<<PB0);                      //HC595 output reg - rising edge...
+    PORTB &= ~(1<<PB0);                      //and falling edge
     display_count = (display_count << 1); //shift display bit for next time 
   }
-  if (display_count == 0b10000000){display_count=0x00;} //back to 1st positon
+  if (display_count == 0b10000000){display_count = 1;} //back to 1st positon
 }
 
 /***********************************************************************/
