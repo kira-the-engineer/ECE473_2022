@@ -28,6 +28,30 @@ uint8_t dec_to_7seg[12] = {
 };
 
 //******************************************************************************
+//			       spi_init
+//Initialization function for the SPI ports on the atmega128. Based around the
+//demos in the SPI lecture as well as the skeleton code for the bargraph demo
+//Sets up ports for SS, MOSI, SCLK. MISO (PB3) is an input, so it doesn't need
+//to be pulled high
+//
+********************************************************************************/
+void spi_init(void) {
+    DDRB  |=   (1<<PB0) | (1<<PB1) | (1<<PB2); //Turn on SS, MOSI, SCLK
+    SPCR  =   (1<<SPE) | (1<<MSTR) | (0<<CPHA) | (1<<CPOL);  //enable SPI, master mode 
+}
+
+//******************************************************************************
+//			      timer_init
+//Initializes the timer to run off the i/o clock, in normal mode with a 128
+//prescaler. Used for generating interrupts to update encoder and buttons
+//
+********************************************************************************/
+void timer_init(void) {
+     TIMSK |= (1<<TOIE0);             //enable interrupts
+     TCCR0 |= (1<<CS02) | (1<<CS00);  //normal mode, prescale by 128
+}
+
+//******************************************************************************
 //                            chk_buttons                                      
 //Checks the state of the button number passed to it. It shifts in ones till   
 //the button is pushed. Function returns a 1 only once per debounced button    
@@ -86,3 +110,29 @@ void segsum(uint16_t sum) {
   }
 }//segment_sum
 //***********************************************************************************
+
+uint8_t main() {
+  // Begin port initialization
+  DDRB |= (1<<PB4) | (1<<PB5) | (1<<PB6) | (1<<PB7); //Set Port B 4-7 as output
+  DDRD |= (1<<PD2) | (1<<PD3); //Set PD2, PD3 as outputs for controlling Regclk and OE on 595
+  DDRE |= (1<<PE5) | (1<<PE6); //Set PD5, PD6 as outputs for CLK inhibit and Shift/Load on 165
+  //PORTA's status as either an output/input should be modified within the main while/by the interrupt
+
+  //Initialize timer and SPI interface
+  spi_init();
+  timer_init();
+
+  //Initialize PORTE Values for encoder register control
+  PORTE |= (1<<PE5); //Set clock inhibit high
+  PORTE |= (0<<PE6); //Pull shift ld low
+
+  sei(); //enable global interrupts
+
+  while(1){
+
+
+
+
+  }
+
+}
