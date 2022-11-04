@@ -5,7 +5,11 @@
 #include <util/delay.h>
 #include <avr/interrupt.h>
 
-uint16_t seg_sum = 0; //create variable to count from the encoder to send to the display
+//Globals
+uint16_t prev_enc = 0x00; //create var to store previous encoder state
+uint16_t enc_cnt = 0x00; //create variable to track rotation of encoder
+uint16_t count = 0; //create variable to store overall count to send to display
+uint16_t prevcnt =0; //create variable to store previous count
 uint8_t bar_cnt = 0; //create variable to store count to send to bargraph
 uint8_t cntup = 0, cntdn = 0; //boolean ints that read 0 if off, 1 if on
 uint8_t cnt2x, cnt4x; //boolean ints that store 1 or 0 depending on if they're enabled
@@ -31,7 +35,7 @@ uint8_t dec_to_7seg[12] = {
        0b11111111, // clear all segments (active low)
 };
 
-//******************************************************************************
+/*******************************************************************************
 //			       spi_init
 //Initialization function for the SPI ports on the atmega128. Based around the
 //demos in the SPI lecture as well as the skeleton code for the bargraph demo
@@ -44,7 +48,7 @@ void spi_init(void) {
     SPCR  =   (1<<SPE) | (1<<MSTR) | (0<<CPHA) | (1<<CPOL);  //enable SPI, master mode 
 }
 
-//******************************************************************************
+/*******************************************************************************
 //			      timer_init
 //Initializes the timer to run off the i/o clock, in normal mode with a 128
 //prescaler. Used for generating interrupts to update encoder and buttons
@@ -100,7 +104,13 @@ void segsum(uint16_t sum) {
   //load values into segment data array
   segment_data[0] = dec_to_7seg[ones]; // get digit for ones place
   segment_data[1] = dec_to_7seg[tens]; // get digit for tens place
-  segment_data[2] = 0xFF; // Keep colon off
+  //Load segment 2 based on whether the count is up or down
+  if(cntup){
+	segment_data[2] = 0x01; // turn on the colon
+  }
+  else if(cntdn){
+	segment_data[2] = 0x02; // turn off the colon
+  }
   segment_data[3] = dec_to_7seg[hundreds]; // get digit for hundreds place
   segment_data[4] = dec_to_7seg[thousands]; // get digit for thousands place
 
@@ -125,7 +135,8 @@ void segsum(uint16_t sum) {
 //for the count to send to the segments
 //
 *************************************************************************************/
-ISR(TIMER_0VF_vect){
+ISR(TIMER0_OVF_vect){
+  prevcnt = count; //set previous count to current count before update
   DDRA = 0x00;  // set PORTA to all inputs
   PORTA = 0xFF; // enable all pullup resistors on PORTA
   //First we want to update the buttons to see what state they're in
@@ -133,30 +144,47 @@ ISR(TIMER_0VF_vect){
   PORTB |= (1<<PB4) | (1<<PB5) | (1<<PB6); //enable tristate buffer to get button states
   for(int i=0; i < 2; i++){
 	if(i == 0){ //if we're on button 1
-		if(chkbuttons(i)){ //if button 1 is pressed
-			//set flag to inc count by 2
+		if(chk_buttons(i)){ //if button 1 is pressed
+			cnt2x ^= 1;
 		}
 	}
 	else if(i == 1){
-		if(chkbuttons(i)){ //if button 2 is pressed
-			//set flag to inc count by 4
+		if(chk_buttons(i)){ //if button 2 is pressed
+			cnt4x ^= 1;
 		}
 	}
   }
 
   PORTB &= ~(1<<PB6); //disable tristates once buttons are checked
-	//check if both flags are enabled
-	//if yes set count to previous count??/don't update/rei
-
 	//check encoders 1st to update count, then do logic for checking what to scale count by?
-	//when count is upped in state machine, set flag for l3 up
-	//when count is decreased in state machine, set flag for l3 down
 
-	//scale count based on flag set 
+	//scale count based on flag set
+	//if both flags are set
+	if(cnt4x && cnt2x) {
+		count = prevcnt; //set count to previous count
+    	}
+	else if(cnt2x && !cnt4x) {
+		//count equals encoder output scaled by 4?
+	}
+	else if(cnt4x && !cnt2x) {
+		//count equals encoder output scaled by 2?
+	}
 	//once count is scaled
-	//check if increased by 32 steps(diff between last encoder count and this enc count = 32);
-	//if it is, increment bargraph- if not, just show LED for up mode
+	//check for change in 32 increments/decrement + send to bargraph
+	if(prevcnt + 32 == count) {
+		//if we've increased 32 increment 1 on bargraph
+		//bargraph = bargraph + 1
+		cntup = 1; //set flag to toggle cnt up
+		cntdn = 0;
+	}
+	else if(count + 32 == prevcnt) {
+		//if we've decreased by 32 decrement 1 on bargraph
+		//bargraph = bargraph - 1;
+		cntdn = 1; //set flag to toggle cnt dn
+		cntup = 0;
+	}
 
+	//send data to bargraph
 }
 
 uint8_t main() {
@@ -165,6 +193,7 @@ uint8_t main() {
   DDRD |= (1<<PD2) | (1<<PD3); //Set PD2, PD3 as outputs for controlling Regclk and OE on 595
   DDRE |= (1<<PE5) | (1<<PE6); //Set PD5, PD6 as outputs for CLK inhibit and Shift/Load on 165
   //PORTA's status as either an output/input should be modified within the main while/by the interrupt
+  DDRA |= 0x00; //Start PORTA as an input
 
   //Initialize timer and SPI interface
   spi_init();
@@ -178,11 +207,15 @@ uint8_t main() {
 
   while(1){
 
-
     //bound the count to 0 - 1023
-    if(seg_sum > 1023) {
-	seg_sum = 0;
+    if(count > 1023) {
+	count = 0;
     }
+    else if(count < 0) {
+	count = 1023;
+    }
+
+    segsum(count); //display values based on count value
 
     //make PORTA an output, send bits to display
     DDRA = 0xFF;
@@ -193,5 +226,6 @@ uint8_t main() {
     }
 
   }
+  return 0;
 
 }
