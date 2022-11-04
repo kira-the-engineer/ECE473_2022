@@ -6,13 +6,12 @@
 #include <avr/interrupt.h>
 
 //Globals
-uint16_t prev_enc = 0x00; //create var to store previous encoder state
-uint16_t enc_cnt = 0x00; //create variable to track rotation of encoder
 uint16_t count = 0; //create variable to store overall count to send to display
-uint16_t prevcnt =0; //create variable to store previous count
-uint8_t bar_cnt = 0; //create variable to store count to send to bargraph
+uint16_t prevcnt = 0; //create variable to store previous count
+uint8_t step = 0; //step to inc/dec by
+uint8_t bar_cnt = 0x01; //create variable to store count to send to bargraph
 uint8_t cntup = 0, cntdn = 0; //boolean ints that read 0 if off, 1 if on
-uint8_t cnt2x, cnt4x; //boolean ints that store 1 or 0 depending on if they're enabled
+uint8_t cnt2x = 0, cnt4x = 0; //boolean ints that store 1 or 0 depending on if they're enabled
 
 //Bring over segment array defs from Lab2
 //holds data to be sent to the segments. logic zero turns segment on
@@ -126,6 +125,43 @@ void segsum(uint16_t sum) {
   }
 }//segment_sum
 
+int8_t get_encoder(uint8_t encoder){
+  int return_val = -1; //default return value
+  uint8_t newA, newB; //new values for encoder pins
+  static uint8_t oldA = 1, oldB = 1; //old values for encoder pins
+  static int8_t enc_cnt = 0; //keeps state count
+
+  newA = ((encoder & 0x01) == 0) ? 0 : 1; //get current value of the encoder for state machine
+  newB = ((encoder & 0x02) == 0) ? 0 : 1;
+
+  if((newA != oldA) || (newB != oldB)) { //check to see if a change occured
+	if((newA == 0) && (newB == 0)) { //if both new states are zero
+		if(oldA == 1) enc_cnt++;
+		else enc_cnt--;
+	}
+	else if((newA == 0) && (newB == 0)) { //both states are 10
+		if(oldA == 0) enc_cnt++;
+		else enc_cnt--;
+	}
+	else if((newA == 1) && (newB == 1)) { //if at detent pos
+		if(oldA == 0){
+			if(enc_cnt == 3) return_val = 0; //turn right
+		}
+		else{
+			if(enc_cnt == -3) return_val = 1; //turn left
+		}
+		enc_cnt = 0; //reset encoder count
+	}
+	else if((newA == 1) && (newB == 0)){ //if both 01
+		if(oldA == 1) enc_cnt++;
+		else enc_cnt--;
+	}
+	oldA = newA; //set vals for next loop
+	oldB = newB;
+  }
+  return return_val;
+}
+
 /***********************************************************************************
 //					TCNT0 ISR
 //Interrupt service handler for the Timer/CNT 0. This service routine checks the 
@@ -156,35 +192,40 @@ ISR(TIMER0_OVF_vect){
   }
 
   PORTB &= ~(1<<PB6); //disable tristates once buttons are checked
-	//check encoders 1st to update count, then do logic for checking what to scale count by?
+  DDRA = 0xFF; //Make port A an output
 
-	//scale count based on flag set
-	//if both flags are set
-	if(cnt4x && cnt2x) {
-		count = prevcnt; //set count to previous count
-    	}
-	else if(cnt2x && !cnt4x) {
-		//count equals encoder output scaled by 4?
-	}
-	else if(cnt4x && !cnt2x) {
-		//count equals encoder output scaled by 2?
-	}
-	//once count is scaled
-	//check for change in 32 increments/decrement + send to bargraph
-	if(prevcnt + 32 == count) {
-		//if we've increased 32 increment 1 on bargraph
-		//bargraph = bargraph + 1
-		cntup = 1; //set flag to toggle cnt up
-		cntdn = 0;
-	}
-	else if(count + 32 == prevcnt) {
-		//if we've decreased by 32 decrement 1 on bargraph
-		//bargraph = bargraph - 1;
-		cntdn = 1; //set flag to toggle cnt dn
-		cntup = 0;
-	}
+  PORTE |= (1<<PE5); //Disable clock inhibit
+  PORTE &= ~(1<<PE6); //Enable shift load
 
-	//send data to bargraph
+  //Read SPI values - code adapted from SPI pres
+  SPDR = 0x00; //send dummy val to SPDR to toggle read
+  while(bit_is_clear(SPSR,SPIF)){} //Spin until tx is finished
+  uint8_t read_enc = SPDR; //save read value
+
+  //pass read value to enc read func and get if enc turned right or left
+  uint8_t state = get_encoder(read_enc); //get enc state and save it 
+
+  //scale step based on flag set
+  if(cnt4x && cnt2x) {
+	step = 0;
+  }
+  else if(cnt2x && !cnt4x) {
+	step = 2;
+  }
+  else if(cnt4x && !cnt2x) {
+	step = 4;
+  }
+  else {
+	step = 1;
+  }
+
+  switch(state) {
+	case 0: count += step; break; //if we've turned right inc count
+	case 1: count -= step; break; //if we've turned left dec count
+	default: count = prevcnt; break; //don't change value otherwise
+  }
+
+  //send data to bargraph
 }
 
 uint8_t main() {
@@ -200,8 +241,11 @@ uint8_t main() {
   timer_init();
 
   //Initialize PORTE Values for encoder register control
-  PORTE |= (1<<PE5); //Set clock inhibit high
-  PORTE |= (0<<PE6); //Pull shift ld low
+  PORTE |= (0<<PE5); //Set clock inhibit low to enable
+  PORTE |= (1<<PE6); //Disable shift load
+
+  //Stop Bargraph initially by pulling regclk high
+  PORTD |= (1<<PD2);
 
   sei(); //enable global interrupts
 
