@@ -105,10 +105,10 @@ void segsum(uint16_t sum) {
   segment_data[1] = dec_to_7seg[tens]; // get digit for tens place
   //Load segment 2 based on whether the count is up or down
   if(cntup){
-	segment_data[2] = 0x01; // turn on the colon
+	segment_data[2] = 0xFE; // turn on the colon
   }
   else if(cntdn){
-	segment_data[2] = 0x02; // turn off the colon
+	segment_data[2] = 0xFD; // turn off the colon
   }
   segment_data[3] = dec_to_7seg[hundreds]; // get digit for hundreds place
   segment_data[4] = dec_to_7seg[thousands]; // get digit for thousands place
@@ -225,6 +225,25 @@ ISR(TIMER0_OVF_vect){
 	default: count = prevcnt; break; //don't change value otherwise
   }
 
+      //bound the count to 0 - 1023
+    if(count > 1023) {
+	count = 0;
+    }
+    else if(count < 0) {
+	count = 1023;
+    }
+
+    segsum(count); //display values based on count value
+
+    //make PORTA an output, send bits to display
+    DDRA = 0xFF;
+    for(int i = 0; i < 5; i++) {
+        PORTB = (i << 4);
+        PORTA = segment_data[i];
+	_delay_ms(2);
+    }
+
+
   //send data to bargraph
 }
 
@@ -249,27 +268,7 @@ uint8_t main() {
 
   sei(); //enable global interrupts
 
-  while(1){
-
-    //bound the count to 0 - 1023
-    if(count > 1023) {
-	count = 0;
-    }
-    else if(count < 0) {
-	count = 1023;
-    }
-
-    segsum(count); //display values based on count value
-
-    //make PORTA an output, send bits to display
-    DDRA = 0xFF;
-    for(int i = 0; i < 5; i++) {
-        PORTB = (i << 4);
-        PORTA = segment_data[i];
-	_delay_ms(2);
-    }
-
-  }
+  while(1){}
   return 0;
 
 }
