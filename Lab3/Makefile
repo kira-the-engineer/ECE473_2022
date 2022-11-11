@@ -1,4 +1,4 @@
-PRG            =lab3
+PRG            =test_encoder
 OBJ            = $(PRG).o
 
 MCU_TARGET     = atmega128
