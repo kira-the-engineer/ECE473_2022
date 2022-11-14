@@ -46,21 +46,35 @@ void clock_init() {
     TCCR0 = (1 << CS00) | (1 << CS02); //set prescaler to 128 so ovflw every 1s
 
     //Initialize display
-    segment_data[0] = dec_to_7seg[0];
-    segment_data[1] = dec_to_7seg[0];
+    segment_data[0] = dec_to_7seg[min_count];
+    segment_data[1] = dec_to_7seg[min_count];
     segment_data[2] = 0xFF; //on initially
-    segment_data[3] = dec_to_7seg[0];
-    segment_data[4] = dec_to_7seg[0];
+    segment_data[3] = dec_to_7seg[hour_count];
+    segment_data[4] = dec_to_7seg[hour_count];
 }
 
 /**************************************************************************
  * Similar in structure to the segsum function, this function is responsible
  * for loading the hour and minute counts onto the seven segment display. 
- * The top two digits are for hours, the bottom two are for minutes
+ * The top two digits (3,2) are for hours, the bottom two (1,0) are for 
+ * minutes. Hours and minutes are respectively broken into high and low
+ * digits so they can be properly displayed on the LED display. No digits
+ * are blanked out, single digit hours will have a leading zero as is common 
+ * in 24 hour clock displays
  **************************************************************************/
 void update_time(int8_t min, uint8_t hour) {
-	
+	//Break up minutes display into high and low bit
+	uint8_t min_l = (min % 10);
+	uint8_t min_h = ((min/10) % 10);
+	//Break up hours display into high and low bit
+	uint8_t hr_l = (hour % 10);
+	uint8_t hr_h = ((hour/10) % 10);
 
+	//send hours/mins to segments
+	segment_data[0] = dec_to_7seg[min_l];
+	segment_data[1] = dec_to_7seg[min_h];
+	segment_data[3] = dec_to_7seg[hr_l];
+	segment_data[4] = dec_to_7seg[hr_h];
 }
 
 //ISRS
@@ -87,16 +101,12 @@ ISR(TIMER0_OVF_vect){
 		}
 	}
 	if(hour_count == 24){
-		//Reset all counters
-		hour_count = 0;
-		min_count = 0;
-	 	sec_count = 0;
-	        //Reset display to 00:00
-		segment_data[0] = dec_to_7seg[0];
-                segment_data[1] = dec_to_7seg[0];
-                segment_data[3] = dec_to_7seg[0];
-                segment_data[4] = dec_to_7seg[0];
+		//Reset hour counter
+		hour_count = 0; //reset hour_count for next 24 hours;
 	}
+
+	//update display
+	update_time(min_count, hour_count);
 	//toggle colon on and off every 1s
 	segment_data[2] ^= 0xFF;
 }
