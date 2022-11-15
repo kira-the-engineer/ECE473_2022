@@ -121,13 +121,7 @@ ISR(TIMER0_OVF_vect){
 
 uint8_t main() {
     DDRB |= (1<<PB4) | (1<<PB5) | (1<<PB6) | (1<<PB7); //set port bits 4-7 B as outputs [0b11110000]
-    DDRC |= (1<<PC0); //set port C bit zero as an output
-    DDRE |= 0x00; //set interrupt INT4 pin to input
     clock_init(); //start RTC
-
-    //initialize interrupt
-    EIMSK |= (1<<INT4); //enable external interrupt 4
-    EICRB |= (1<<ISC41) | (0<<ISC40); //set interrupt to trigger on falling edge
     sei(); //interrupts on
 
     while(1){
