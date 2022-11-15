@@ -119,19 +119,6 @@ ISR(TIMER0_OVF_vect){
 	segment_data[2] ^= 0xFF;
 }
 
-//Interrupt for controlling the display manually
-ISR(INT4_vect){
-    //test incrementing minutes
-    if(min_count <= 60){
-	min_count++;
-    }
-    else{
-	min_count = 0;
-    }
-
-    PORTC ^= (1<<PC0); //Reset bit before exiting interrupt so we only need a single button press to trigger it
-}
-
 uint8_t main() {
     DDRB |= (1<<PB4) | (1<<PB5) | (1<<PB6) | (1<<PB7); //set port bits 4-7 B as outputs [0b11110000]
     DDRC |= (1<<PC0); //set port C bit zero as an output
@@ -144,16 +131,6 @@ uint8_t main() {
     sei(); //interrupts on
 
     while(1){
-	_delay_ms(2);
-	//check for button
-	DDRA = 0x00;  // set PORTA to all inputs
-        PORTA = 0xFF; // enable all pullup resistors on PORTA
-	PORTB |= (1<<PB4) | (1<<PB5) | (1<<PB6);
-	for(int i=0; i < 8; i++) {
-		if(chk_buttons(0)){
-			PORTC ^= (1<<PC0);
-		}
-	}
         PORTB &= ~(1<<PB6);
 	DDRA = 0xFF;
 	for(int i = 0; i < 5; i++) {
