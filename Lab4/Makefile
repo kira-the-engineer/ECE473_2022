@@ -1,4 +1,4 @@
-PRG            =test_rtc
+PRG            =ext_int_pbs
 OBJ            = $(PRG).o
 
 MCU_TARGET     = atmega128
