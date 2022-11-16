@@ -65,7 +65,7 @@ uint8_t chk_buttons(uint8_t button) {
 
 void io_timer_init() {
 	TCCR3A = 0x00; //set to normal mode
-        TCCR3B = (1<<CS11) | (1<<CS10); //64 prescaler
+        TCCR3B = (1<<CS31) | (1<<CS30); //64 prescaler
         TCCR3C = 0x00; //no forced compare
 
 	ETIMSK |= (1<<TOIE3);
