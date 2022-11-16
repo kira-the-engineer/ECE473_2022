@@ -45,7 +45,7 @@ void clock_init() {
     //Initialize display
     segment_data[0] = dec_to_7seg[min_count];
     segment_data[1] = dec_to_7seg[min_count];
-    segment_data[2] = 0xFF; //on initially
+    segment_data[2] = 0xDF; //just colon on initially
     segment_data[3] = dec_to_7seg[hour_count];
     segment_data[4] = dec_to_7seg[hour_count];
 }
@@ -116,7 +116,7 @@ ISR(TIMER0_OVF_vect){
 	//update display
 	update_time(min_count, hour_count);
 	//toggle colon on and off every 1s
-	segment_data[2] ^= 0xFF;
+	segment_data[2] ^= 0xFB;
 }
 
 uint8_t main() {
