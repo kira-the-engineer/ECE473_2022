@@ -111,6 +111,14 @@ ISR(TIMER0_OVF_vect){
 	segment_data[2] ^= 0xFF;
 }
 
+uint8_t chk_buttons(uint8_t button) {
+//******************************************************************************
+  static uint16_t pbstate[8] = {0};  // create initialize button state storage array with zeros
+  pbstate[button] = (pbstate[button] << 1) | (! bit_is_clear(PINA, button)) | 0xE000;
+  if(pbstate[button] == 0xF000) return 1;
+  return 0;
+}
+
 
 uint8_t main() {
     DDRB |= (1<<PB4) | (1<<PB5) | (1<<PB6) | (1<<PB7); //set port bits 4-7 B as outputs [0b11110000]
@@ -118,7 +126,18 @@ uint8_t main() {
     sei(); //interrupts on
 
     while(1){
+	DDRA = 0x00;
+	PORTA = 0xFF;
+	PORTB |= (1<<PB4) | (1<<PB5) | (1<<PB6);
 	DDRA = 0xFF;
+
+	for(int x = 0; x <8; x++) {
+		if(chk_buttons(x)) {
+			min_count++;
+		}
+	}
+
+        PORTB &= ~(1<<PB6);
 	for(int i = 0; i < 5; i++) {
             PORTB = (i << 4);
             PORTA = segment_data[i];
