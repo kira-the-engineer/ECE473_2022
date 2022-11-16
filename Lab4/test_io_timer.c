@@ -1,16 +1,12 @@
-/************************************************************************
- * Lab 4: Alarm Clock
- * K. Kopcho
- * 11/14/2022
-*************************************************************************/
+// short and sweet test code to mess around with tcnt3 to get it ready for use in the main file
+
 #include <avr/io.h>
 #include <util/delay.h>
 #include <avr/interrupt.h>
 
-//define globals
-uint8_t sec_count = 0; //counter for how many seconds are elapsed
-uint8_t	min_count = 0; //counter for how many minutes have elapsed
-uint8_t hour_count = 0;
+uint8_t counth = 0, countl = 0;
+static uint8_t index = 0;
+static uint8_t digit = 0;
 //holds data to be sent to the segments. logic zero turns segment on
 uint8_t segment_data[5]; 
 
@@ -31,24 +27,6 @@ uint8_t dec_to_7seg[12] = {
        0b11111111, // clear all segments (active low)
 
 };
-
-/************************************************************************
- * Starts TCNT0. Initialization for the external oscillator based on the 
- * demo code for the bargraph
- ************************************************************************/
-void clock_init() {
-    //start the timer
-    ASSR   |=  (1<<AS0); //ext osc TOSC
-    TIMSK |= (1 << TOIE0); //enable interrupts on timer 0
-    TCCR0 = (1 << CS00) | (1 << CS02); //set prescaler to 128 so ovflw every 1s
-
-    //Initialize display
-    segment_data[0] = dec_to_7seg[min_count];
-    segment_data[1] = dec_to_7seg[min_count];
-    segment_data[2] = 0xDF; //just colon on initially
-    segment_data[3] = dec_to_7seg[hour_count];
-    segment_data[4] = dec_to_7seg[hour_count];
-}
 
 /**************************************************************************
  * Similar in structure to the segsum function, this function is responsible
@@ -85,51 +63,57 @@ uint8_t chk_buttons(uint8_t button) {
   return 0;
 }
 
-//ISRS
-/**************************************************************************
- * ISR for TCNT0. Takes care of updating the counters for seconds, minutes
- * and hours, and then updating the actual display with those values.
- * This interrupt happens precisely every 1 second due to the external 
- * 32KHz oscillator being prescaled by 128. 
- **************************************************************************/
-ISR(TIMER0_OVF_vect){
-	if(sec_count < 60) { //if less than 60s have elapsed
-		sec_count++;
-	}
-	if(sec_count == 60){ //if a min has passed
-		sec_count = 0; //reset seconds for next minute
-		if(min_count < 60) {
-		    min_count++; //increment minutes
-		}
-	}
-	if(min_count == 60) { //if an hour has passed
-		min_count = 0; //reset min count for next hour
-		if(hour_count < 24) {
-			hour_count++; //increment hours
-		}
-	}
-	if(hour_count == 24){
-		//Reset hour counter
-		hour_count = 0; //reset hour_count for next 24 hours;
-	}
+void io_timer_init() {
+	TCCR3A = 0x00; //set to normal mode
+        TCCR3B = (1<<CS11) | (1<<CS10); //64 prescaler
+        TCCR3C = 0x00; //no forced compare
 
-	//update display
-	update_time(min_count, hour_count);
-	//toggle colon on and off every 1s
-	segment_data[2] ^= 0xFB;
+	ETIMSK |= (1<<TOIE3);
 }
 
-uint8_t main() {
-    DDRB |= (1<<PB4) | (1<<PB5) | (1<<PB6) | (1<<PB7); //set port bits 4-7 B as outputs [0b11110000]
-    clock_init(); //start RTC
-    sei(); //interrupts on
+//ISRS
+ISR(TIMER3_OVF_vect){
+	DDRA = 0x00;  // set PORTA to all inputs
+        PORTA = 0xFF; // enable all pullup resistors on PORTA
+        PORTB |= (1<<PB4) | (1<<PB5) | (1<<PB6); //enable tristates
+	if(chk_buttons(index)){
+		countl++;
+		counth++;
+	}
+	PORTB &= ~(1<<PB6); //disable tristates once buttons are checked
+	if(index > 8) index = 0;
+        else{
+	    index++;
+	}
 
-    while(1){
+	update_time(countl, counth); //update the display array
+
 	DDRA = 0xFF;
-	for(int i = 0; i < 5; i++) {
-            PORTB = (i << 4);
-            PORTA = segment_data[i];
-	    _delay_us(250);
-       }
+	PORTB &= 0x8F; //clear
+	PORTA = segment_data[digit];
+	PORTB = (digit << 4);
+
+	if(digit == 5) digit = 0;
+	else {
+		digit++;
+	}
+
+	//get faster clock
+	TCNT3H = 0xFF;
+	TCNT3L = 0x00;
+}
+
+void main() {
+    //Initialize display array
+    segment_data[0] = dec_to_7seg[counth];
+    segment_data[1] = dec_to_7seg[counth];
+    segment_data[2] = 0xDF; //just colon on initially
+    segment_data[3] = dec_to_7seg[countl];
+    segment_data[4] = dec_to_7seg[countl];
+
+    DDRB |= (1<<PB4) | (1<<PB5) | (1<<PB6) | (1<<PB7); //set port bits 4-7 B as outputs [0b11110000]
+    io_timer_init();
+    sei(); //interrupts on
+    while(1) {
     }
 }

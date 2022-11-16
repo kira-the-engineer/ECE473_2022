@@ -1,4 +1,4 @@
-PRG            =lab4
+PRG            =test_io_timer
 OBJ            = $(PRG).o
 
 MCU_TARGET     = atmega128
