@@ -13,6 +13,7 @@ uint8_t	min_count = 0; //counter for how many minutes have elapsed
 uint8_t hour_count = 0; //counter for storing elapsed hour
 uint8_t alarm_hour = 0; //stores user set hour for alarm setting
 uint8_t alarm_min = 0; //stores user set min for alarm setting
+uint8_t armed = 0; //toggle for if alarm is armed
 //holds data to be sent to the segments. logic zero turns segment on
 uint8_t segment_data[5]; 
 
@@ -87,7 +88,13 @@ uint8_t chk_buttons(uint8_t button) {
   return 0;
 }
 
-
+/**************************************************************************
+ * Function responsible for setting the time of the clock. Called when time
+ * set flag is toggled by button 0. Within this function, button 1 toggles
+ * whether or not the user is setting the hours or the minutes, button
+ * 2 toggles changing the minutes or hours by 1 or by 10, button 3 increments
+ * and button 4 decrements
+ **************************************************************************/
 void set_time(){
 	uint8_t static toggletime = 0; //sets whether or not we're incrementing hours or minutes
 	uint8_t static togglecnt = 0; //toggle inc by 1 (0) or by 10 (1)
@@ -154,6 +161,82 @@ void set_time(){
 	}
 }
 
+
+/**************************************************************************
+ * Function responsible for setting the alarm. Identical to time set
+ * function, except it modifies the alarm globals. Admittedly, the alarm
+ * and time set functions should be generics, but for some reason when 
+ * passing globals into a generic function it doesn't actually update them
+ * (probably because variables passed into a function just become copies
+ * local to that function.)
+ **************************************************************************/
+void set_alarm(){
+	uint8_t static toggletime = 0; //sets whether or not we're incrementing hours or minutes
+	uint8_t static togglecnt = 0; //toggle inc by 1 (0) or by 10 (1)
+	//check buttons + set flags
+	if(chk_buttons(1)){
+		toggletime ^= 1; //flip bit for changing between hours and mins
+	}
+	if(chk_buttons(2)){
+		togglecnt ^= 1; //cnt by 1 or cnt by 10
+	}
+	if(chk_buttons(3)){
+		switch(toggletime){
+			case 0: //if we're working with minutes
+			     if(alarm_min >= 60 && alarm_min < 65){alarm_min = 0; alarm_hour++;} //rollover
+			     else if(alarm_min < 60) {
+			          if(togglecnt == 0){ //if 0: normal op, inc by 1
+	                               alarm_min++;
+                                  }
+                                  else if(togglecnt == 1){ //if 1: inc by 10
+	                               alarm_min += 10;
+                                  }
+			     }
+			     break;
+			case 1:
+			     if(alarm_hour >= 24 && alarm_hour < 29) {alarm_hour = 0;} //rollover
+			     else if(alarm_hour < 24){
+				   if(togglecnt == 0){ //if 0: normal op, inc by 1
+				 	alarm_hour++;
+				   }
+				   else if(togglecnt == 1){ //if 1: inc by 10
+					alarm_hour += 10;
+				   }
+			     }
+			break;
+			default: break;
+		}
+	}
+	if(chk_buttons(4)){
+		switch(toggletime){
+		        case 0:
+			     if(alarm_min > 59 && alarm_min > 64) alarm_min = 59; //underflow to 60
+			     else if (alarm_min >= 0 || alarm_min < 60){
+				  if(togglecnt == 0){ //if 0: normal op, dec by 1
+	                               alarm_min--;
+                                  }
+                                  else if(togglecnt == 1){ //if 1: dec by 10
+	                               alarm_min -= 10;
+                                  }
+			     }
+			     break;
+			case 1:
+			     if(alarm_hour > 23 && alarm_hour > 28) alarm_hour = 23; //underflow to 23 
+			     else if(alarm_hour >= 0 || alarm_hour < 24){
+				  if(togglecnt == 0){ //if 0: normal op, dec by 1
+	                               alarm_hour--;
+                                  }
+                                  else if(togglecnt == 1){ //if 1: dec by 10
+	                               alarm_min -= 10;
+                                  }
+			     }
+			     break;
+			default: break;
+		}
+	}
+}
+
+
 //ISRS
 /**************************************************************************
  * ISR for TCNT0. Takes care of updating the counters for seconds, minutes
@@ -201,27 +284,34 @@ uint8_t main() {
 	DDRA = 0xFF;
 
 	for(int x = 0; x < 8; x++) {
-		if(chk_buttons(0)){
+		if(chk_buttons(0)){ //button that enters/exits time setting mode
 		     TIMSK ^= (1<<TOIE0); //stop the interrupts while clock settings are changed
 		     sec_count = 0; //reset seconds count
 		     settime ^=1;
 		     break;
 		}
-		if(chk_buttons(7)){
+		if(chk_buttons(7)){ //button that enters/exits alarm setting mode
 		     setalarm ^= 1;
 		     break;
 		}
 	}
 
-	if(settime){
+	if(settime && !setalarm){
 		set_time();
 	}
-	else if(setalarm){
-		//call alarm setting func
+	if(setalarm && !settime){
+		set_alarm();
+		update_time(alarm_min, alarm_hour); //update display to show alarm settings
+		armed = 1;
 	}
 
-	update_time(min_count, hour_count);
+	if(armed){
+		segment_data[2] ^= 0xFC;
+	}
 
+	if(!setalarm){
+	    update_time(min_count, hour_count); //update display like normal
+	}
         PORTB &= ~(1<<PB6);
 	for(int i = 0; i < 5; i++) {
             PORTB = (i << 4);
