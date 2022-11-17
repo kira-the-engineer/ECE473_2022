@@ -130,7 +130,7 @@ void set_time(){
 	if(chk_buttons(3)){
 		switch(toggletime){
 			case 0:
-			     if(min_count >= 60) min_count = 0;
+			     if(min_count >= 60){ min_count = 0; hour_count++;}
 			     else {
 				    min_count++;
 			     }
@@ -141,6 +141,23 @@ void set_time(){
 				    hour_count++;
 			     }
 			break;
+			default: break;
+		}
+	}
+	if(chk_buttons(4)){
+		switch(toggletime){
+		        case 0:
+			     if(min_count >= 60) { min_count = 0; hour_count++;}
+			     else {
+				    min_count += 10;
+			     }
+			     break;
+			case 1:
+			     if(hour_count >= 24) hour_count = 0;
+			     else {
+				    hour_count += 10;
+			     }
+			     break;
 			default: break;
 		}
 	}
