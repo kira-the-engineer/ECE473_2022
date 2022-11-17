@@ -10,9 +10,7 @@
 //define globals
 uint8_t sec_count = 0; //counter for how many seconds are elapsed
 uint8_t	min_count = 0; //counter for how many minutes have elapsed
-uint8_t hour_count = 0; //counter for storing elapsed hours
-static uint8_t digit = 0; //which digit needs to be updated on display
-static uint8_t index = 0; //index in button array to check each interrupt
+uint8_t hour_count = 0; //counter for storing elapsed hour
 //holds data to be sent to the segments. logic zero turns segment on
 uint8_t segment_data[5]; 
 
@@ -76,20 +74,12 @@ void update_time(int8_t min, uint8_t hour) {
 	segment_data[4] = dec_to_7seg[hr_h];
 }
 
-void io_timer_init() {
-	TCCR3A = 0x00; //set to normal mode
-        TCCR3B = (1<<CS31) | (1<<CS30); //64 prescaler
-        TCCR3C = 0x00; //no forced compare
-
-	ETIMSK |= (1<<TOIE3);
-}
-
 /**************************************************************************
  * Code for debouncing pushbuttons adapted from Ganssele's guide to 
  * debouncing
  **************************************************************************/
 uint8_t chk_buttons(uint8_t button) {
-  static uint8_t pbstate[8] = {0};  // create initialize button state storage array with zeros
+  static uint16_t pbstate[8] = {0};  // create initialize button state storage array with zeros
   pbstate[button] = (pbstate[button] << 1) | (! bit_is_clear(PINA, button)) | 0xE000;
   if(pbstate[button] == 0xF000) return 1;
   return 0;
@@ -123,47 +113,47 @@ ISR(TIMER0_OVF_vect){
 		hour_count = 0; //reset hour_count for next 24 hours;
 	}
 
-	//update display
-	update_time(min_count, hour_count);
 	//toggle colon on and off every 1s
 	segment_data[2] ^= 0xFB;
 }
 
-ISR(TIMER3_OVF_vect){
-	DDRA = 0x00;  // set PORTA to all inputs
-        PORTA = 0xFF; // enable all pullup resistors on PORTA
-        PORTB |= (1<<PB4) | (1<<PB5) | (1<<PB6); //enable tristates
-	if(chk_buttons(index)){
-		min_count++;
-	}
-	PORTB &= ~(1<<PB6); //disable tristates once buttons are checked
-	if(index > 8) index = 0;
-	else{
-           index++;
-	}
-
-	update_time(min_count, hour_count); //update the display array
-
-	DDRA = 0xFF;
-	PORTB &= 0x8F; //clear
-	PORTA = segment_data[digit];
-	PORTB = (digit << 4);
-
-	if(digit == 5) digit = 0;
-	else {
-	    digit++;
-	}
-
-	//get faster clock
-	TCNT3H = 0xFF;
-	TCNT3L = 0x00;
-}
-
 uint8_t main() {
     DDRB |= (1<<PB4) | (1<<PB5) | (1<<PB6) | (1<<PB7); //set port bits 4-7 B as outputs [0b11110000]
+    static uint8_t settime = 0;
     clock_init(); //start RTC
-    io_timer_init(); //start io timer
     sei(); //interrupts on
 
-    while(1){}
+    while(1){
+	_delay_ms(2);
+	DDRA = 0x00;
+	PORTA = 0xFF;
+	PORTB |= (1<<PB4) | (1<<PB5) | (1<<PB6);
+	DDRA = 0xFF;
+
+	for(int x = 0; x < 4; x++) {
+		if(chk_buttons(0)){
+		     settime ^= 1;
+		     break;
+		}
+	}
+
+	if(settime){
+		if(chk_buttons(1)){
+			min_count++;
+		}
+		if(chk_buttons(2)){
+			hour_count++;
+		}
+	}
+
+	update_time(min_count, hour_count);
+
+        PORTB &= ~(1<<PB6);
+	for(int i = 0; i < 5; i++) {
+            PORTB = (i << 4);
+            PORTA = segment_data[i];
+	    _delay_ms(2);
+       }
+
+    }
 }
