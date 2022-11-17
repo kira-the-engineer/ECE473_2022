@@ -48,7 +48,7 @@ void clock_init() {
     //Initialize display
     segment_data[0] = dec_to_7seg[min_count];
     segment_data[1] = dec_to_7seg[min_count];
-    segment_data[2] = 0xDF; //just colon on initially
+    segment_data[2] = 0xFF; //colon on initially
     segment_data[3] = dec_to_7seg[hour_count];
     segment_data[4] = dec_to_7seg[hour_count];
 }
@@ -265,8 +265,21 @@ ISR(TIMER0_OVF_vect){
 		hour_count = 0; //reset hour_count for next 24 hours;
 	}
 
-	//toggle colon on and off every 1s
-	segment_data[2] ^= 0xFB;
+	//segment_data[2] ^= 0xFB;
+
+	//begin state checking for colon display
+	if(!armed && segment_data[2] == 0xFB){ //if segment is on, and alarm is off
+		segment_data[2] = 0xFF; //turn off the colon
+	}
+	else if(armed && segment_data[2] == 0xFB){ //if segment is on and alarm is on
+		segment_data[2] = 0xFF & 0xFC; //turn off colon and turn on indicator
+	}
+	else if(!armed && segment_data[2] == 0xFF){ //if segment is off and alarm is off
+		segment_data[2] = 0xFB; //turn on colon
+	}
+	else if(armed && segment_data[2] = 0xFF){
+		segment_data[2] = 0xFB & 0xFC; //turn on colon and indicator
+	}
 }
 
 uint8_t main() {
@@ -300,13 +313,9 @@ uint8_t main() {
 		set_time();
 	}
 	if(setalarm && !settime){
+		armed = 1;
 		set_alarm();
 		update_time(alarm_min, alarm_hour); //update display to show alarm settings
-		armed = 1;
-	}
-
-	if(armed){
-		segment_data[2] ^= 0xFC;
 	}
 
 	if(!setalarm){
