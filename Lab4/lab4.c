@@ -209,6 +209,13 @@ uint8_t main() {
 	if(settime && !setalarm){ //don't allow user to change clock and alarm settings at same time
 	    set_time();
 	}
+	else if(setalarm && !settime) { //don't allow clock setting while setting alarm
+	    //call alarm setting function
+	}
+	else if(settime && setalarm) { //if we're ever somehow toggled at the same time, clear
+		settime = 0;
+		setalarm = 0;
+	}
 
 	update_time(min_count, hour_count);
 
