@@ -118,8 +118,6 @@ ISR(TIMER0_OVF_vect){
 }
 
 void set_time(){
-	TCCR0 = 0x00; //stop timer before making changes
-	sec_count = 0; //reset seconds counter
 	uint8_t static toggletime = 0; //sets whether or not we're incrementing hours or minutes
 	uint8_t static togglecnt = 0; //toggle inc/dec time 1: increment 0: decrement
 	//check buttons + set flags
@@ -131,13 +129,21 @@ void set_time(){
 	}
 	if(chk_buttons(3)){
 		switch(toggletime){
-			case 0: min_count++; break;
-			case 1: hour_count++; break;
+			case 0:
+			     if(min_count >= 60) min_count = 0;
+			     else {
+				    min_count++;
+			     }
+			     break;
+			case 1:
+			     if(hour_count >= 24) hour_count = 0;
+			     else {
+				    hour_count++;
+			     }
+			break;
 			default: break;
 		}
 	}
-
-	TCCR0 = (1<<CS00) | (1<<CS02);
 }
 
 uint8_t main() {
