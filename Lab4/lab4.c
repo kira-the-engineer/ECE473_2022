@@ -11,6 +11,8 @@
 uint8_t sec_count = 0; //counter for how many seconds are elapsed
 uint8_t	min_count = 0; //counter for how many minutes have elapsed
 uint8_t hour_count = 0; //counter for storing elapsed hour
+uint8_t alarm_hour = 0; //stores user set hour for alarm setting
+uint8_t alarm_min = 0; //stores user set min for alarm setting
 //holds data to be sent to the segments. logic zero turns segment on
 uint8_t segment_data[5]; 
 
@@ -85,6 +87,73 @@ uint8_t chk_buttons(uint8_t button) {
   return 0;
 }
 
+
+void set_time(){
+	uint8_t static toggletime = 0; //sets whether or not we're incrementing hours or minutes
+	uint8_t static togglecnt = 0; //toggle inc by 1 (0) or by 10 (1)
+	//check buttons + set flags
+	if(chk_buttons(1)){
+		toggletime ^= 1; //flip bit for changing between hours and mins
+	}
+	if(chk_buttons(2)){
+		togglecnt ^= 1; //cnt by 1 or cnt by 10
+	}
+	if(chk_buttons(3)){
+		switch(toggletime){
+			case 0: //if we're working with minutes
+			     if(min_count >= 60 && min_count < 65){ min_count = 0; hour_count++;} //rollover
+			     else if(min_count < 60) {
+			          if(togglecnt == 0){ //if 0: normal op, inc by 1
+	                               min_count++;
+                                  }
+                                  else if(togglecnt == 1){ //if 1: inc by 10
+	                               min_count += 10;
+                                  }
+			     }
+			     break;
+			case 1:
+			     if(hour_count >= 24 && hour_count < 29) {hour_count = 0;} //rollover
+			     else if(hour_count < 24){
+				   if(togglecnt == 0){ //if 0: normal op, inc by 1
+				 	hour_count++;
+				   }
+				   else if(togglecnt == 1){ //if 1: inc by 10
+					hour_count += 10;
+				   }
+			     }
+			break;
+			default: break;
+		}
+	}
+	if(chk_buttons(4)){
+		switch(toggletime){
+		        case 0:
+			     if(min_count > 59 && min_count > 64) min_count = 59; //underflow to 60
+			     else if (min_count >= 0 || min_count < 60){
+				  if(togglecnt == 0){ //if 0: normal op, dec by 1
+	                               min_count--;
+                                  }
+                                  else if(togglecnt == 1){ //if 1: dec by 10
+	                               min_count -= 10;
+                                  }
+			     }
+			     break;
+			case 1:
+			     if(hour_count > 23 && hour_count > 28) hour_count = 23; //underflow to 23 
+			     else if(hour_count >= 0 || hour_count < 24){
+				  if(togglecnt == 0){ //if 0: normal op, dec by 1
+	                               hour_count--;
+                                  }
+                                  else if(togglecnt == 1){ //if 1: dec by 10
+	                               min_count -= 10;
+                                  }
+			     }
+			     break;
+			default: break;
+		}
+	}
+}
+
 //ISRS
 /**************************************************************************
  * ISR for TCNT0. Takes care of updating the counters for seconds, minutes
@@ -117,72 +186,6 @@ ISR(TIMER0_OVF_vect){
 	segment_data[2] ^= 0xFB;
 }
 
-void set_time(){
-	uint8_t static toggletime = 0; //sets whether or not we're incrementing hours or minutes
-	uint8_t static togglecnt = 0; //toggle inc by 1 (0) or by 10 (1)
-	//check buttons + set flags
-	if(chk_buttons(1)){
-		toggletime ^= 1; //flip bit for changing between hours and mins
-	}
-	if(chk_buttons(2)){
-		togglecnt ^= 1; //cnt up or cnt down
-	}
-	if(chk_buttons(3)){
-		switch(toggletime){
-			case 0:
-			     if(min_count >= 60){ min_count = 0; hour_count++;}
-			     else if(min_count < 60) {
-			          if(togglecnt == 0){
-	                               min_count++;
-                                  }
-                                  else if(togglecnt == 1){
-	                               min_count += 10;
-                                  }
-			     }
-			     break;
-			case 1:
-			     if(hour_count >= 24) {hour_count = 0;}
-			     else if(hour_count < 24){
-				   if(togglecnt == 0){
-				 	hour_count++;
-				   }
-				   else if(togglecnt == 1){
-					hour_count += 10;
-				   }
-			     }
-			break;
-			default: break;
-		}
-	}
-	if(chk_buttons(4)){
-		switch(toggletime){
-		        case 0:
-			     if(min_count >= 255) min_count = 59; //underflow to 60
-			     else if (min_count >= 0 || min_count < 60){
-				  if(togglecnt == 0){
-	                               min_count--;
-                                  }
-                                  else if(togglecnt == 1){
-	                               min_count -= 10;
-                                  }
-			     }
-			     break;
-			case 1:
-			     if(hour_count >= 255) hour_count = 23; //underflow to 23 
-			     else if(hour_count >= 0 || hour_count < 24){
-				  if(togglecnt == 0){
-	                               hour_count--;
-                                  }
-                                  else if(togglecnt == 1){
-	                               min_count -= 10;
-                                  }
-			     }
-			     break;
-			default: break;
-		}
-	}
-}
-
 uint8_t main() {
     DDRB |= (1<<PB4) | (1<<PB5) | (1<<PB6) | (1<<PB7); //set port bits 4-7 B as outputs [0b11110000]
     static uint8_t settime = 0;
@@ -204,17 +207,17 @@ uint8_t main() {
 		     settime ^=1;
 		     break;
 		}
+		if(chk_buttons(7)){
+		     setalarm ^= 1;
+		     break;
+		}
 	}
 
-	if(settime && !setalarm){ //don't allow user to change clock and alarm settings at same time
-	    set_time();
+	if(settime){
+		set_time();
 	}
-	else if(setalarm && !settime) { //don't allow clock setting while setting alarm
-	    //call alarm setting function
-	}
-	else if(settime && setalarm) { //if we're ever somehow toggled at the same time, clear
-		settime = 0;
-		setalarm = 0;
+	else if(setalarm){
+		//call alarm setting func
 	}
 
 	update_time(min_count, hour_count);
