@@ -119,7 +119,7 @@ ISR(TIMER0_OVF_vect){
 
 void set_time(){
 	uint8_t static toggletime = 0; //sets whether or not we're incrementing hours or minutes
-	uint8_t static togglecnt = 0; //toggle inc/dec time 1: increment 0: decrement
+	uint8_t static togglecnt = 0; //toggle inc by 1 (0) or by 10 (1)
 	//check buttons + set flags
 	if(chk_buttons(1)){
 		toggletime ^= 1; //flip bit for changing between hours and mins
@@ -131,14 +131,24 @@ void set_time(){
 		switch(toggletime){
 			case 0:
 			     if(min_count >= 60){ min_count = 0; hour_count++;}
-			     else {
-				    min_count++;
+			     else if(min_count < 60) {
+			          if(togglecnt == 0){
+	                               min_count++;
+                                  }
+                                  else if(togglecnt == 1){
+	                               min_count += 10;
+                                  }
 			     }
 			     break;
 			case 1:
-			     if(hour_count >= 24) hour_count = 0;
-			     else {
-				    hour_count++;
+			     if(hour_count >= 24) {hour_count = 0;}
+			     else if(hour_count < 24){
+				   if(togglecnt == 0){
+				 	hour_count++;
+				   }
+				   else if(togglecnt == 1){
+					hour_count += 10;
+				   }
 			     }
 			break;
 			default: break;
@@ -147,15 +157,25 @@ void set_time(){
 	if(chk_buttons(4)){
 		switch(toggletime){
 		        case 0:
-			     if(min_count >= 60) { min_count = 0; hour_count++;}
-			     else {
-				    min_count += 10;
+			     if(min_count >= 255) min_count = 59; //underflow to 60
+			     else if (min_count >= 0 || min_count < 60){
+				  if(togglecnt == 0){
+	                               min_count--;
+                                  }
+                                  else if(togglecnt == 1){
+	                               min_count -= 10;
+                                  }
 			     }
 			     break;
 			case 1:
-			     if(hour_count >= 24) hour_count = 0;
-			     else {
-				    hour_count += 10;
+			     if(hour_count >= 255) hour_count = 23; //underflow to 23 
+			     else if(hour_count >= 0 || hour_count < 24){
+				  if(togglecnt == 0){
+	                               hour_count--;
+                                  }
+                                  else if(togglecnt == 1){
+	                               min_count -= 10;
+                                  }
 			     }
 			     break;
 			default: break;
@@ -179,13 +199,15 @@ uint8_t main() {
 
 	for(int x = 0; x < 8; x++) {
 		if(chk_buttons(0)){
-		     settime ^= 1;
+		     TIMSK ^= (1<<TOIE0); //stop the interrupts while clock settings are changed
+		     sec_count = 0; //reset seconds count
+		     settime ^=1;
 		     break;
 		}
 	}
 
 	if(settime && !setalarm){ //don't allow user to change clock and alarm settings at same time
-	     set_time();
+	    set_time();
 	}
 
 	update_time(min_count, hour_count);
