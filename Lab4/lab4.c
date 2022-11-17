@@ -117,9 +117,33 @@ ISR(TIMER0_OVF_vect){
 	segment_data[2] ^= 0xFB;
 }
 
+void set_time(){
+	TCCR0 = 0x00; //stop timer before making changes
+	sec_count = 0; //reset seconds counter
+	uint8_t static toggletime = 0; //sets whether or not we're incrementing hours or minutes
+	uint8_t static togglecnt = 0; //toggle inc/dec time 1: increment 0: decrement
+	//check buttons + set flags
+	if(chk_buttons(1)){
+		toggletime ^= 1; //flip bit for changing between hours and mins
+	}
+	if(chk_buttons(2)){
+		togglecnt ^= 1; //cnt up or cnt down
+	}
+	if(chk_buttons(3)){
+		switch(toggletime){
+			case 0: min_count++; break;
+			case 1: hour_count++; break;
+			default: break;
+		}
+	}
+
+	TCCR0 = (1<<CS00) | (1<<CS02);
+}
+
 uint8_t main() {
     DDRB |= (1<<PB4) | (1<<PB5) | (1<<PB6) | (1<<PB7); //set port bits 4-7 B as outputs [0b11110000]
     static uint8_t settime = 0;
+    static uint8_t setalarm = 0;
     clock_init(); //start RTC
     sei(); //interrupts on
 
@@ -130,20 +154,15 @@ uint8_t main() {
 	PORTB |= (1<<PB4) | (1<<PB5) | (1<<PB6);
 	DDRA = 0xFF;
 
-	for(int x = 0; x < 4; x++) {
+	for(int x = 0; x < 8; x++) {
 		if(chk_buttons(0)){
 		     settime ^= 1;
 		     break;
 		}
 	}
 
-	if(settime){
-		if(chk_buttons(1)){
-			min_count++;
-		}
-		if(chk_buttons(2)){
-			hour_count++;
-		}
+	if(settime && !setalarm){ //don't allow user to change clock and alarm settings at same time
+	     set_time();
 	}
 
 	update_time(min_count, hour_count);
