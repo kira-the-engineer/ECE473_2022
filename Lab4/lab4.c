@@ -294,10 +294,13 @@ ISR(TIMER0_OVF_vect){
 		}
 	}
 	else{
-		if(segment_data[2] == 0xFF){
+		if(segment_data[2] == 0xF8 || segment_data[2] == 0xFB){ //clear on return
+			segment_data[2] = 0xFF;
+		}
+		if(segment_data[2] == 0xFF){ //if off, turn on
 			segment_data[2] = 0xFC;
 		}
-		else if(segment_data[2] == 0xFC) {
+		else if(segment_data[2] == 0xFC) { //if on, turn off
 			segment_data[2] = 0xFF;
 		}
 	}
@@ -339,7 +342,6 @@ uint8_t main() {
 		if(chk_buttons(6)){ //button to stop alarm
 		     sound_alarm = 0; //stop alarm sounding
 		     armed = 0; //clear armed flag
-		     segment_data[2] = 0xFF; //clear segment momentarily
 		     break;
 		}
 		if(chk_buttons(7)){ //button that enters/exits alarm setting mode
