@@ -263,7 +263,7 @@ void set_time(){
 	                               hour_count--;
                                   }
                                   else if(togglecnt == 1){ //if 1: dec by 10
-	                               min_count -= 10;
+	                               hour_count -= 10;
                                   }
 			     }
 			     break;
