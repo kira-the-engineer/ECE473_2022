@@ -14,6 +14,7 @@ uint8_t hour_count = 0; //counter for storing elapsed hour
 uint8_t alarm_hour = 0; //stores user set hour for alarm setting
 uint8_t alarm_min = 0; //stores user set min for alarm setting
 uint8_t armed = 0; //toggle for if alarm is armed
+uint8_t colon = 0; //toggle for if colon is on or off
 uint8_t sound_alarm = 0; //flag for actually sounding the alarm
 //holds data to be sent to the segments. logic zero turns segment on
 uint8_t segment_data[5]; 
@@ -279,30 +280,22 @@ ISR(TIMER0_OVF_vect){
 		hour_count = 0; //reset hour_count for next 24 hours;
 	}
 
-	if(armed){
-		if(segment_data[2] == 0xFF){ //if both off
-			segment_data[2] = 0xF8; //turn on colon and indicator
-		}
-		else if(segment_data[2] == 0x04){ //if colon on and indicator off
-			segment_data[2] = 0xFB; //turn colon off and indicator on
-		}
-		else if(segment_data[2] == 0xF8){ //if both on
-			segment_data[2] = 0xFB; //turn colon off, leave indicator on
-		}
-		else if(segment_data[2] == 0xFB){ //if colon off and indicator on
-			segment_data[2] = 0xF8; //turn on both
-		}
+	//toggle the colon and indicator respectively
+	if(!armed && !colon){ //if colon is off and alarm isn't set
+		segment_data[2] = 0xFC; //turn colon on
+		colon = 1; //set colon flag
 	}
-	else{
-		if(segment_data[2] == 0xF8 || segment_data[2] == 0xFB){ //clear on return
-			segment_data[2] = 0xFF;
-		}
-		if(segment_data[2] == 0xFF){ //if off, turn on
-			segment_data[2] = 0xFC;
-		}
-		else if(segment_data[2] == 0xFC) { //if on, turn off
-			segment_data[2] = 0xFF;
-		}
+	else if(!armed && colon) { //if colon is on and alarm isn't set
+		segment_data[2] = 0xFF; //turn colon off;
+		colon = 0;
+	}
+	else if(armed && colon){ //if the alarm is armed and colon is on
+		segment_data[2] = 0xFB; //turn the colon off and the indicator on
+		colon = 0;
+	}
+	else { //if alarm is armed and colon is off
+		segment_data[2] = 0xF8; //turn both on
+		colon = 1;
 	}
 }
 
