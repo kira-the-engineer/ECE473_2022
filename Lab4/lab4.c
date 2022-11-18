@@ -14,6 +14,7 @@ uint8_t hour_count = 0; //counter for storing elapsed hour
 uint8_t alarm_hour = 0; //stores user set hour for alarm setting
 uint8_t alarm_min = 0; //stores user set min for alarm setting
 uint8_t armed = 0; //toggle for if alarm is armed
+uint8_t sound_alarm = 0; //flag for actually sounding the alarm
 //holds data to be sent to the segments. logic zero turns segment on
 uint8_t segment_data[5]; 
 
@@ -48,9 +49,20 @@ void clock_init() {
     //Initialize display
     segment_data[0] = dec_to_7seg[min_count];
     segment_data[1] = dec_to_7seg[min_count];
-    segment_data[2] = 0xFF; //colon on initially
+    segment_data[2] = 0xFF;
     segment_data[3] = dec_to_7seg[hour_count];
     segment_data[4] = dec_to_7seg[hour_count];
+}
+
+/************************************************************************
+ * Starts TCNT1, the oscillator responsible for sounding the timer. The 
+ * TCNT1 register controls the frequency at which the alarm is sounded.
+ ************************************************************************/
+void alarm_init() {
+	TCNT1 = 20000;
+	TIMSK |= (1<<TOIE1); //enable tcnt1 interrupt
+	TCCR1A = 0x00; //normal mode
+	TCCR1B = (1<<CS10); //no prescale
 }
 
 /**************************************************************************
@@ -238,13 +250,15 @@ void set_alarm(){
 
 
 //ISRS
-/**************************************************************************
+ /**************************************************************************
  * ISR for TCNT0. Takes care of updating the counters for seconds, minutes
- * and hours, and then updating the actual display with those values.
+ * and hours, and then updating the display arrays. It also checks whether
+ * or not the alarm settings match the current time.
  * This interrupt happens precisely every 1 second due to the external 
  * 32KHz oscillator being prescaled by 128. 
  **************************************************************************/
 ISR(TIMER0_OVF_vect){
+	//RTC
 	if(sec_count < 60) { //if less than 60s have elapsed
 		sec_count++;
 	}
@@ -265,20 +279,38 @@ ISR(TIMER0_OVF_vect){
 		hour_count = 0; //reset hour_count for next 24 hours;
 	}
 
-	//segment_data[2] ^= 0xFB;
+	if(armed){
+		if(segment_data[2] == 0xFF){ //if both off
+			segment_data[2] = 0xF8; //turn on colon and indicator
+		}
+		else if(segment_data[2] == 0x04){ //if colon on and indicator off
+			segment_data[2] = 0xFB; //turn colon off and indicator on
+		}
+		else if(segment_data[2] == 0xF8){ //if both on
+			segment_data[2] = 0xFB; //turn colon off, leave indicator on
+		}
+		else if(segment_data[2] == 0xFB){ //if colon off and indicator on
+			segment_data[2] = 0xF8; //turn on both
+		}
+	}
+	else{
+		if(segment_data[2] == 0xFF){
+			segment_data[2] = 0xFC;
+		}
+		else if(segment_data[2] == 0xFC) {
+			segment_data[2] = 0xFF;
+		}
+	}
+}
 
-	//begin state checking for colon display
-	if(!armed && segment_data[2] == 0xFB){ //if segment is on, and alarm is off
-		segment_data[2] = 0xFF; //turn off the colon
-	}
-	else if(armed && segment_data[2] == 0xFB){ //if segment is on and alarm is on
-		segment_data[2] = 0xFF & 0xFC; //turn off colon and turn on indicator
-	}
-	else if(!armed && segment_data[2] == 0xFF){ //if segment is off and alarm is off
-		segment_data[2] = 0xFB; //turn on colon
-	}
-	else if(armed && segment_data[2] = 0xFF){
-		segment_data[2] = 0xFB & 0xFC; //turn on colon and indicator
+/**************************************************************************
+ * ISR for TCNT1. Handles sounding the alarm when a flag is set. 
+ * Otherwise, if the flag isn't set, this just gets passed over
+ **************************************************************************/
+ISR(TIMER1_OVF_vect){
+	if(sound_alarm == 1){
+		PORTC ^= (1 << PC0); //toggle output pin
+		TCNT1 = 20000; //reset overflow value
 	}
 }
 
@@ -287,10 +319,11 @@ uint8_t main() {
     static uint8_t settime = 0;
     static uint8_t setalarm = 0;
     clock_init(); //start RTC
+    alarm_init(); //start oscillator for alarm
     sei(); //interrupts on
 
     while(1){
-	_delay_ms(2);
+	_delay_us(250);
 	DDRA = 0x00;
 	PORTA = 0xFF;
 	PORTB |= (1<<PB4) | (1<<PB5) | (1<<PB6);
@@ -303,6 +336,12 @@ uint8_t main() {
 		     settime ^=1;
 		     break;
 		}
+		if(chk_buttons(6)){ //button to stop alarm
+		     sound_alarm = 0; //stop alarm sounding
+		     armed = 0; //clear armed flag
+		     segment_data[2] = 0xFF; //clear segment momentarily
+		     break;
+		}
 		if(chk_buttons(7)){ //button that enters/exits alarm setting mode
 		     setalarm ^= 1;
 		     break;
@@ -310,22 +349,28 @@ uint8_t main() {
 	}
 
 	if(settime && !setalarm){
-		set_time();
+		set_time(); //go through time setting ui
 	}
 	if(setalarm && !settime){
-		armed = 1;
-		set_alarm();
+		armed = 1; //mark the alarm as armed
+		set_alarm(); //go through alarm setting UI
 		update_time(alarm_min, alarm_hour); //update display to show alarm settings
+	}
+	if(setalarm && settime){ //don't let the time set and alarm set functions run simulataneously
+		setalarm = 0;
+		settime = 0;
 	}
 
 	if(!setalarm){
 	    update_time(min_count, hour_count); //update display like normal
 	}
+
+	//push update to 7seg display
         PORTB &= ~(1<<PB6);
 	for(int i = 0; i < 5; i++) {
             PORTB = (i << 4);
             PORTA = segment_data[i];
-	    _delay_ms(2);
+	    _delay_us(250);
        }
 
     }
