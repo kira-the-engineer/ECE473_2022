@@ -107,6 +107,16 @@ ISR(TIMER1_OVF_vect){
 	}
 }
 
+/**************************************************************************
+ * ISR for ADC conversion register. Triggers when ADC is done converting,
+ * and sets OCR2 to set the brightness of the display
+ **************************************************************************/
+ISR(ADC_vect){
+	if(ADCH >= 64){ //bound adc output to prevent weirdness with buttons....
+	    OCR2 = ADCH; //set output compare register to data in ADC register once read
+	}
+}
+
 /************************************************************************
  * Starts TCNT0. Initialization for the external oscillator based on the 
  * demo code for the bargraph
@@ -148,7 +158,7 @@ void pwm_init() {
 /************************************************************************
  * Starts ADC for brightness control. References inclass adc code
  ************************************************************************/
-void init_adc() {
+void adc_init() {
 	ADMUX = 0x67; //single ended, input on F7, left adjust, 10 bits
 	//Enable ADC, single shot, interrupt enable
 	ADCSRA = (1<<ADEN) | (1<<ADPS2) | (1<<ADPS1) | (1<<ADPS0) | (1<<ADIE);
@@ -345,7 +355,11 @@ uint8_t main() {
     static uint8_t setalarm = 0;
     clock_init(); //start RTC
     alarm_init(); //start oscillator for alarm
+    pwm_init(); //start tcnt2 for pwm
+    adc_init(); //setup adc
     sei(); //interrupts on
+
+    OCR2 = 0; //inital set of output compare for pwm
 
     while(1){
 	_delay_us(250);
