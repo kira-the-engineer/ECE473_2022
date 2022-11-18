@@ -37,6 +37,76 @@ uint8_t dec_to_7seg[12] = {
 
 };
 
+//ISRS
+ /**************************************************************************
+ * ISR for TCNT0. Takes care of updating the counters for seconds, minutes
+ * and hours, and then updating the display arrays. It also checks whether
+ * or not the alarm settings match the current time.
+ * This interrupt happens precisely every 1 second due to the external 
+ * 32KHz oscillator being prescaled by 128. 
+ **************************************************************************/
+ISR(TIMER0_OVF_vect){
+	//RTC
+	if(sec_count < 60) { //if less than 60s have elapsed
+		sec_count++;
+	}
+	if(sec_count == 60){ //if a min has passed
+		sec_count = 0; //reset seconds for next minute
+		if(min_count < 60) {
+		    min_count++; //increment minutes
+		}
+	}
+	if(min_count == 60) { //if an hour has passed
+		min_count = 0; //reset min count for next hour
+		if(hour_count < 24) {
+			hour_count++; //increment hours
+		}
+	}
+	if(hour_count == 24){
+		//Reset hour counter
+		hour_count = 0; //reset hour_count for next 24 hours;
+	}
+
+	//toggle the colon and indicator respectively
+	if(!armed && !colon){ //if colon is off and alarm isn't set
+		segment_data[2] = 0xFC; //turn colon on
+		colon = 1; //set colon flag
+	}
+	else if(!armed && colon) { //if colon is on and alarm isn't set
+		segment_data[2] = 0xFF; //turn colon off;
+		colon = 0;
+	}
+	else if(armed && colon){ //if the alarm is armed and colon is on
+		segment_data[2] = 0xFB; //turn the colon off and the indicator on
+		colon = 0;
+	}
+	else { //if alarm is armed and colon is off
+		segment_data[2] = 0xF8; //turn both on
+		colon = 1;
+	}
+
+	if(armed){ //only check this if the alarm is armed
+		if(min_count == alarm_min && hour_count == alarm_hour){
+			sound_alarm = 1;
+		}
+		else{
+			sound_alarm = 0;
+		}
+	}
+
+}
+
+/**************************************************************************
+ * ISR for TCNT1. Handles sounding the alarm when a flag is set. 
+ * Otherwise, if the flag isn't set, this just gets passed over
+ **************************************************************************/
+ISR(TIMER1_OVF_vect){
+	if(sound_alarm == 1){
+		PORTC ^= (1 << PC0); //toggle output pin
+		TCNT1 = 20000; //reset overflow value
+	}
+}
+
 /************************************************************************
  * Starts TCNT0. Initialization for the external oscillator based on the 
  * demo code for the bargraph
@@ -56,7 +126,7 @@ void clock_init() {
 }
 
 /************************************************************************
- * Starts TCNT1, the oscillator responsible for sounding the timer. The 
+ * Starts TCNT1, the oscillator responsible for sounding the alarm. The 
  * TCNT1 register controls the frequency at which the alarm is sounded.
  ************************************************************************/
 void alarm_init() {
@@ -64,6 +134,24 @@ void alarm_init() {
 	TIMSK |= (1<<TOIE1); //enable tcnt1 interrupt
 	TCCR1A = 0x00; //normal mode
 	TCCR1B = (1<<CS10); //no prescale
+}
+
+/************************************************************************
+ * Starts TCNT2, fast pwm to control the brightness of the seven segment
+ * display.
+ ************************************************************************/
+void pwm_init() {
+    //prescale of 8, clear on output compare
+    TCCR2 |= (1 << WGM21) | (1 << WGM20) | (1 << COM21) | (0 << COM20) | (1 << CS20);
+}
+
+/************************************************************************
+ * Starts ADC for brightness control. References inclass adc code
+ ************************************************************************/
+void init_adc() {
+	ADMUX = 0x67; //single ended, input on F7, left adjust, 10 bits
+	//Enable ADC, single shot, interrupt enable
+	ADCSRA = (1<<ADEN) | (1<<ADPS2) | (1<<ADPS1) | (1<<ADPS0) | (1<<ADIE);
 }
 
 /**************************************************************************
@@ -249,76 +337,6 @@ void set_alarm(){
 	}
 }
 
-//ISRS
- /**************************************************************************
- * ISR for TCNT0. Takes care of updating the counters for seconds, minutes
- * and hours, and then updating the display arrays. It also checks whether
- * or not the alarm settings match the current time.
- * This interrupt happens precisely every 1 second due to the external 
- * 32KHz oscillator being prescaled by 128. 
- **************************************************************************/
-ISR(TIMER0_OVF_vect){
-	//RTC
-	if(sec_count < 60) { //if less than 60s have elapsed
-		sec_count++;
-	}
-	if(sec_count == 60){ //if a min has passed
-		sec_count = 0; //reset seconds for next minute
-		if(min_count < 60) {
-		    min_count++; //increment minutes
-		}
-	}
-	if(min_count == 60) { //if an hour has passed
-		min_count = 0; //reset min count for next hour
-		if(hour_count < 24) {
-			hour_count++; //increment hours
-		}
-	}
-	if(hour_count == 24){
-		//Reset hour counter
-		hour_count = 0; //reset hour_count for next 24 hours;
-	}
-
-	//toggle the colon and indicator respectively
-	if(!armed && !colon){ //if colon is off and alarm isn't set
-		segment_data[2] = 0xFC; //turn colon on
-		colon = 1; //set colon flag
-	}
-	else if(!armed && colon) { //if colon is on and alarm isn't set
-		segment_data[2] = 0xFF; //turn colon off;
-		colon = 0;
-	}
-	else if(armed && colon){ //if the alarm is armed and colon is on
-		segment_data[2] = 0xFB; //turn the colon off and the indicator on
-		colon = 0;
-	}
-	else { //if alarm is armed and colon is off
-		segment_data[2] = 0xF8; //turn both on
-		colon = 1;
-	}
-
-	if(armed){ //only check this if the alarm is armed
-		if(min_count == alarm_min && hour_count == alarm_hour){
-			sound_alarm = 1;
-		}
-		else{
-			sound_alarm = 0;
-		}
-	}
-
-}
-
-/**************************************************************************
- * ISR for TCNT1. Handles sounding the alarm when a flag is set. 
- * Otherwise, if the flag isn't set, this just gets passed over
- **************************************************************************/
-ISR(TIMER1_OVF_vect){
-	if(sound_alarm == 1){
-		PORTC ^= (1 << PC0); //toggle output pin
-		TCNT1 = 20000; //reset overflow value
-	}
-}
-
 uint8_t main() {
     DDRB |= (1<<PB4) | (1<<PB5) | (1<<PB6) | (1<<PB7); //set port bits 4-7 B as outputs [0b11110000]
     DDRC |= (1<<PC0); //set osc pin
@@ -336,6 +354,7 @@ uint8_t main() {
 	PORTA = 0xFF; //enable pullups
 	PORTB |= (1<<PB4) | (1<<PB5) | (1<<PB6); //enable tristate
 
+	ADCSRA |= (1<<ADSC); //ADC start conversion
 	for(int x = 0; x < 8; x++) {
 		if(chk_buttons(0)){ //button that enters/exits time setting mode
 		     TIMSK ^= (1<<TOIE0); //stop the interrupts while clock settings are changed
