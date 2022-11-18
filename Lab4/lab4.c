@@ -249,7 +249,6 @@ void set_alarm(){
 	}
 }
 
-
 //ISRS
  /**************************************************************************
  * ISR for TCNT0. Takes care of updating the counters for seconds, minutes
@@ -297,6 +296,16 @@ ISR(TIMER0_OVF_vect){
 		segment_data[2] = 0xF8; //turn both on
 		colon = 1;
 	}
+
+	if(armed){ //only check this if the alarm is armed
+		if(min_count == alarm_min && hour_count == alarm_hour){
+			sound_alarm = 1;
+		}
+		else{
+			sound_alarm = 0;
+		}
+	}
+
 }
 
 /**************************************************************************
@@ -312,6 +321,8 @@ ISR(TIMER1_OVF_vect){
 
 uint8_t main() {
     DDRB |= (1<<PB4) | (1<<PB5) | (1<<PB6) | (1<<PB7); //set port bits 4-7 B as outputs [0b11110000]
+    DDRC |= (1<<PC0); //set osc pin
+    PORTC |= (0<<PC0); //keep alarm off initially
     static uint8_t settime = 0;
     static uint8_t setalarm = 0;
     clock_init(); //start RTC
@@ -320,10 +331,10 @@ uint8_t main() {
 
     while(1){
 	_delay_us(250);
-	DDRA = 0x00;
-	PORTA = 0xFF;
-	PORTB |= (1<<PB4) | (1<<PB5) | (1<<PB6);
-	DDRA = 0xFF;
+	//Set pins
+	DDRA = 0x00; //pin a input initially
+	PORTA = 0xFF; //enable pullups
+	PORTB |= (1<<PB4) | (1<<PB5) | (1<<PB6); //enable tristate
 
 	for(int x = 0; x < 8; x++) {
 		if(chk_buttons(0)){ //button that enters/exits time setting mode
@@ -347,9 +358,9 @@ uint8_t main() {
 		set_time(); //go through time setting ui
 	}
 	if(setalarm && !settime){
-		armed = 1; //mark the alarm as armed
 		set_alarm(); //go through alarm setting UI
 		update_time(alarm_min, alarm_hour); //update display to show alarm settings
+		armed = 1; //arm alarm
 	}
 	if(setalarm && settime){ //don't let the time set and alarm set functions run simulataneously
 		setalarm = 0;
@@ -361,6 +372,7 @@ uint8_t main() {
 	}
 
 	//push update to 7seg display
+	DDRA = 0xFF;
         PORTB &= ~(1<<PB6);
 	for(int i = 0; i < 5; i++) {
             PORTB = (i << 4);
