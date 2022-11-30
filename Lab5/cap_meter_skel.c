@@ -32,7 +32,9 @@ void spi_init(void){
 /*****************************************************************************/
 //Comparator init
 //Use bandgap reference (1.23V), Input capture trigger for TCNT1 enabled 
-void acomp_init(void){}
+void acomp_init(void){
+
+}
 /*****************************************************************************/
 
 /*****************************************************************************/
@@ -40,7 +42,11 @@ void acomp_init(void){}
 //Run in normal mode. Used to set the refresh rate for the LCD display.
 //Refresh rate shold be about 4mS. Does not generate interrupts. Poll for
 //interrupt flag.
-void tcnt3_init(void){}
+void tcnt3_init(void){
+	TCCR3A = 0x00; //normal mode
+	TCCR1B |= (1<CS11) ; //8 prescale
+	TCCR1C = 0x00; //no forced compare
+}
 /*****************************************************************************/
 
 /*****************************************************************************/
@@ -48,7 +54,12 @@ void tcnt3_init(void){}
 //Use in normal mode. Suggest no pre-scaler. Start up initially with counter off.
 //Must enable TCNT1 input capture and overflow interrupts.
 //
-void tcnt1_init(void){}
+void tcnt1_init(void){
+	TCCR1A = 0x00; //normal mode
+	TCCR1B = 0x00; //no prescaler, timer stopped initially
+	TCCR1C = 0x00; //no forced compare
+	TIMSK = (1<<TOIE1); //enable interrupts on timer counter port
+}
 /*****************************************************************************/
 
 /*****************************************************************************/
@@ -79,12 +90,12 @@ int main(){
     PORTF &= 0xF7;  //port F bit 3 is initially low
     //set PE2,3 appropriately
     spi_init(); //initalize SPI
-    //initialize counter/timer one
-    //initialize counter/timer three
+    tcnt1_init(); //initialize counter/timer one
+    tcnt3_init(); //initialize counter/timer three
     //initialize analog comparator
     //wait enough time for bandgap reference to startup 
-    //initialize the LCD
-    //enable interrupts
+    lcd_init(); //initialize the LCD
+    sei(); //enable interrupts
 
     while(1){
         if (TCNT3 overflowed){   
