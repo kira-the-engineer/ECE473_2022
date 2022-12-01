@@ -11,7 +11,7 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include <util/delay.h>
-#include "lcd.h"
+#include "hd44780.h"
 #include <string.h>
 
 //global variable with LCD text, so ISR can change it
@@ -44,7 +44,7 @@ void acomp_init(void){
 //interrupt flag.
 void tcnt3_init(void){
 	TCCR3A = 0x00; //normal mode
-	TCCR1B |= (1<CS11) ; //8 prescale
+	TCCR1B |= (1<<CS10) | (1<<CS11); //1024 prescale
 	TCCR1C = 0x00; //no forced compare
 }
 /*****************************************************************************/
@@ -58,7 +58,7 @@ void tcnt1_init(void){
 	TCCR1A = 0x00; //normal mode
 	TCCR1B = 0x00; //no prescaler, timer stopped initially
 	TCCR1C = 0x00; //no forced compare
-	TIMSK = (1<<TOIE1); //enable interrupts on timer counter port
+	TIMSK = (1<<TOIE1) | (1<<TICIE1); //enable interrupts on timer counter port
 }
 /*****************************************************************************/
 
@@ -78,17 +78,20 @@ ISR(TIMER1_CAPT_vect){}
 //If TCNT1 overflows, before the analog comparator triggers, disable counter
 // and display "---.-" to LCD
 //
-ISR(TIMER1_OVF_vect){}
+ISR(TIMER1_OVF_vect){
+
+}
 /*****************************************************************************/
 
 /*****************************************************************************/
 int main(){
     //setup PORTB.0 LED for blinking
-    DDRB |= 0x01; //Port B bit 0 as output
+    DDRB |= (1<<PB0); //Port B bit 0 as output
     //setup PORTF.3 to clock LCD
     DDRF  |= 0x08;
     PORTF &= 0xF7;  //port F bit 3 is initially low
     //set PE2,3 appropriately
+    DDRE |= (0<<PE2) | (0<<PE3); //make PE2 and PE3 inputs initially
     spi_init(); //initalize SPI
     tcnt1_init(); //initialize counter/timer one
     tcnt3_init(); //initialize counter/timer three
@@ -98,14 +101,14 @@ int main(){
     sei(); //enable interrupts
 
     while(1){
-        if (TCNT3 overflowed){   
-            //clear overflow bit for next measurement
+        if (ETIFR & (1<<TOV3)){   
+            ETIFR |= (1<<TOV3); //clear overflow bit for next measurement
             PORTB ^= 1 << PB0; //toggle B0 to see that the meter is running
-            //ensure that TCNT1 starts at zero to time the charge interval
-            //make PE2 an output to discharge cap
+            TCNT1 = 0x00; //ensure that TCNT1 starts at zero to time the charge interval
+            DDRE |= (1<<PE2); //make PE2 an output to discharge cap
             //delay enough to discharge the cap 
-            //start TC1 counter, no prescaling (62.5nS/tick)
-            //change PE2 back to high-Z (input) to allow charging cap
+            TCCR1B = (1<<CS12) | (1<<CS10);//start TC1 counter, no prescaling (62.5nS/tick)
+            DDRE |= (0 << PE2)//change PE2 back to high-Z (input) to allow charging cap
             //write string to LCD; message is created in the ISR
             //put the cursor back to home
         }//if
