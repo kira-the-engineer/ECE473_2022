@@ -79,7 +79,9 @@ ISR(TIMER1_CAPT_vect){}
 // and display "---.-" to LCD
 //
 ISR(TIMER1_OVF_vect){
-
+	TCCR1B = 0x00; //stop timer
+	TCNT1 = 0x00; //set back to zero
+	strcpy(lcd_message, "----.-");
 }
 /*****************************************************************************/
 
@@ -109,8 +111,8 @@ int main(){
             //delay enough to discharge the cap 
             TCCR1B = (1<<CS10);//start TC1 counter, no prescaling (62.5nS/tick)
             DDRE |= (0 << PE2);//change PE2 back to high-Z (input) to allow charging cap
-            //write string to LCD; message is created in the ISR
-            //put the cursor back to home
+            string2lcd(lcd_message);//write string to LCD; message is created in the ISR
+            cursor_home(); //put the cursor back to home
         }//if
     }//while
 }//main
