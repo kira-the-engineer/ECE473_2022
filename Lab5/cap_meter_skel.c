@@ -44,8 +44,8 @@ void acomp_init(void){
 //interrupt flag.
 void tcnt3_init(void){
 	TCCR3A = 0x00; //normal mode
-	TCCR1B |= (1<<CS10) | (1<<CS11); //1024 prescale
-	TCCR1C = 0x00; //no forced compare
+	TCCR3B |= (1<<CS10) | (1<<CS11); //1024 prescale
+	TCCR3C = 0x00; //no forced compare
 }
 /*****************************************************************************/
 
@@ -86,7 +86,7 @@ ISR(TIMER1_OVF_vect){
 /*****************************************************************************/
 int main(){
     //setup PORTB.0 LED for blinking
-    DDRB |= (1<<PB0); //Port B bit 0 as output
+    DDRB |= 0x01; //Port B bit 0 as output
     //setup PORTF.3 to clock LCD
     DDRF  |= 0x08;
     PORTF &= 0xF7;  //port F bit 3 is initially low
@@ -103,12 +103,12 @@ int main(){
     while(1){
         if (ETIFR & (1<<TOV3)){   
             ETIFR |= (1<<TOV3); //clear overflow bit for next measurement
-            PORTB ^= 1 << PB0; //toggle B0 to see that the meter is running
+            PORTB ^= (1<<PB0); //toggle B0 to see that the meter is running
             TCNT1 = 0x00; //ensure that TCNT1 starts at zero to time the charge interval
             DDRE |= (1<<PE2); //make PE2 an output to discharge cap
             //delay enough to discharge the cap 
-            TCCR1B = (1<<CS12) | (1<<CS10);//start TC1 counter, no prescaling (62.5nS/tick)
-            DDRE |= (0 << PE2)//change PE2 back to high-Z (input) to allow charging cap
+            TCCR1B = (1<<CS10);//start TC1 counter, no prescaling (62.5nS/tick)
+            DDRE |= (0 << PE2);//change PE2 back to high-Z (input) to allow charging cap
             //write string to LCD; message is created in the ISR
             //put the cursor back to home
         }//if
