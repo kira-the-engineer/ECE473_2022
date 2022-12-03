@@ -33,7 +33,7 @@ void spi_init(void){
 //Comparator init
 //Use bandgap reference (1.23V), Input capture trigger for TCNT1 enabled 
 void acomp_init(void){
-
+	ACSR |= (1<<ACIC) | (1<<ACBG); //set bandgap ref and allow interrupt on TC1 to be triggered
 }
 /*****************************************************************************/
 
@@ -70,7 +70,12 @@ void tcnt1_init(void){
 //  - convert to cap value
 //  - fill in the LCD message string only 
 //
-ISR(TIMER1_CAPT_vect){}
+ISR(TIMER1_CAPT_vect){
+	int capcnt = TCNT1; //save counter 1 val
+	TCCR1B = 0x00; //stop timer
+	//convert cap 
+	//strcpy(lcd_message, "cap value")
+}
 /*****************************************************************************/
 
 /*****************************************************************************/
@@ -93,12 +98,12 @@ int main(){
     DDRF  |= 0x08;
     PORTF &= 0xF7;  //port F bit 3 is initially low
     //set PE2,3 appropriately
-    DDRE |= (0<<PE2) | (0<<PE3); //make PE2 and PE3 inputs initially
+    DDRE |= (0<<PE3); //make PE3 input initially (PE2 gets disconnected by the ABCG being pulled high, gnd if needed)
     spi_init(); //initalize SPI
     tcnt1_init(); //initialize counter/timer one
     tcnt3_init(); //initialize counter/timer three
-    //initialize analog comparator
-    //wait enough time for bandgap reference to startup 
+    acomp_init(); //initialize analog comparator
+    _delay_us(70); //wait enough time for bandgap reference to startup 
     lcd_init(); //initialize the LCD
     sei(); //enable interrupts
 
@@ -107,10 +112,10 @@ int main(){
             ETIFR |= (1<<TOV3); //clear overflow bit for next measurement
             PORTB ^= (1<<PB0); //toggle B0 to see that the meter is running
             TCNT1 = 0x00; //ensure that TCNT1 starts at zero to time the charge interval
-            DDRE |= (1<<PE2); //make PE2 an output to discharge cap
-            //delay enough to discharge the cap 
+            DDRE |= (1<<PE3); //make PE3 an output to discharge cap
+            _delay_ms(1); //delay enough to discharge the cap 
             TCCR1B = (1<<CS10);//start TC1 counter, no prescaling (62.5nS/tick)
-            DDRE |= (0 << PE2);//change PE2 back to high-Z (input) to allow charging cap
+            DDRE |= (0 << PE3);//change PE3 back to high-Z (input) to allow charging cap
             string2lcd(lcd_message);//write string to LCD; message is created in the ISR
             cursor_home(); //put the cursor back to home
         }//if
