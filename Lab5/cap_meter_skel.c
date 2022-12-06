@@ -17,6 +17,7 @@
 
 //global variable with LCD text, so ISR can change it
 char lcd_message[14] = {"xxxx.x nF cap"};
+float minimum = 0.00000000001; //0.1nf is smallest val
 /*****************************************************************************/
 //SPI initalization for LCD display
 void spi_init(void){
@@ -74,11 +75,16 @@ ISR(TIMER1_CAPT_vect){
 	int dt = TCNT1; //save counter 1 val as dt (time to charge cap)
 	TCCR1B = 0x00; //stop timer
 	int capval = 0.000571 / (1.23 / dt); // C = 571uA / (dv/dt)
-	//leading 0 supression here
-	char capstr[7]; //create string large enough to store "xxxx.x" cap val
-	sprintf(capstr, "%d", capval); //format int to string
-	strncpy(lcd_message, capstr, 6); //send to lcd_message;
-	strcat(lcd_message, " nF cap");
+	//leading 0 suppression inspired by the uint2lcd function in the lcd driver
+	if (capval <= minimum) {capval = minimum;}
+	else{
+		if(capval >= 100){capval = capval/100;}
+		if(capval >= 10){capval = ((capval%100)/10);}
+		if(capval >= 1){capval = (capval%10);}
+	}
+	char capstr[7];
+	sprintf(capstr, "%d", capval);
+	strncpy(lcd_message, capstr, 6); //copy capstr to lcd_message
 }
 /*****************************************************************************/
 
@@ -117,7 +123,7 @@ int main(){
             PORTB ^= (1<<PB0); //toggle B0 to see that the meter is running
             TCNT1 = 0x00; //ensure that TCNT1 starts at zero to time the charge interval
             DDRE |= (1<<PE3); //make PE3 an output to discharge cap
-            _delay_ms(2); //delay enough to discharge the cap 
+            _delay_ms(2.2); //delay enough to discharge the cap 
             TCCR1B = (1<<CS10);//start TC1 counter, no prescaling (62.5nS/tick)
             DDRE |= (0 << PE3);//change PE3 back to high-Z (input) to allow charging cap
             string2lcd(lcd_message);//write string to LCD; message is created in the ISR
