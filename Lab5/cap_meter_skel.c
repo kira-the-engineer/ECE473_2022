@@ -13,10 +13,10 @@
 #include <util/delay.h>
 #include "hd44780.h"
 #include <string.h>
+#include <stdio.h>
 
 //global variable with LCD text, so ISR can change it
 char lcd_message[14] = {"xxxx.x nF cap"};
-
 /*****************************************************************************/
 //SPI initalization for LCD display
 void spi_init(void){
@@ -67,14 +67,18 @@ void tcnt1_init(void){
 //When input capture register interrupt happens: 
 //  - read counter 1 value
 //  - disable counter
-//  - convert to cap value
+//  - convert to cap valu ~500uA / dv/dt.
 //  - fill in the LCD message string only 
 //
 ISR(TIMER1_CAPT_vect){
-	int capcnt = TCNT1; //save counter 1 val
+	int dt = TCNT1; //save counter 1 val as dt (time to charge cap)
 	TCCR1B = 0x00; //stop timer
-	//convert cap 
-	//strcpy(lcd_message, "cap value")
+	int capval = 0.000571 / (1.23 / dt); // C = 571uA / (dv/dt)
+	//leading 0 supression here
+	char capstr[7]; //create string large enough to store "xxxx.x" cap val
+	sprintf(capstr, "%d", capval); //format int to string
+	strncpy(lcd_message, capstr, 6); //send to lcd_message;
+	strcat(lcd_message, " nF cap");
 }
 /*****************************************************************************/
 
@@ -103,7 +107,7 @@ int main(){
     tcnt1_init(); //initialize counter/timer one
     tcnt3_init(); //initialize counter/timer three
     acomp_init(); //initialize analog comparator
-    _delay_us(70); //wait enough time for bandgap reference to startup 
+    _delay_us(75); //wait enough time for bandgap reference to startup 
     lcd_init(); //initialize the LCD
     sei(); //enable interrupts
 
@@ -113,7 +117,7 @@ int main(){
             PORTB ^= (1<<PB0); //toggle B0 to see that the meter is running
             TCNT1 = 0x00; //ensure that TCNT1 starts at zero to time the charge interval
             DDRE |= (1<<PE3); //make PE3 an output to discharge cap
-            _delay_ms(1); //delay enough to discharge the cap 
+            _delay_ms(2); //delay enough to discharge the cap 
             TCCR1B = (1<<CS10);//start TC1 counter, no prescaling (62.5nS/tick)
             DDRE |= (0 << PE3);//change PE3 back to high-Z (input) to allow charging cap
             string2lcd(lcd_message);//write string to LCD; message is created in the ISR
